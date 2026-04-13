@@ -62,6 +62,11 @@ float kspd = 2.5;
 - USB 接続するだけで発熱し画面表示なし、復旧不可と判断 → **M5StickC Plus 交換待ち**
 - **次のステップ**: 新しい M5StickC Plus 入手後、半田付け前にジャンパーワイヤーでサーボ動作確認してからメインファームウェア (`inverted_pendulum.ino`) の書き込み＆倒立テスト
 
+#### 購入が必要な部品
+
+- M5StickC Plus（新品交換）
+- デジタルテスター（通電前のショート確認用）
+
 ## 参考
 
 - [Interface誌 記事ページ](https://interface.cqpub.co.jp/202509st/)
