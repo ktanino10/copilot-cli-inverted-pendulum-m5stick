@@ -96,6 +96,7 @@ float kspd = 2.5;
 ### 参考
 
 - [Interface誌 記事ページ](https://interface.cqpub.co.jp/202509st/)
+- [しんさん (n_shinichi) の倒立振子ブログ記事](https://n-shinichi.hatenablog.com/entry/2025/08/31/163903) — M5StickC Plus / Plus2 向けサンプルスケッチの解説。Interface誌キットの制作者ご本人による技術情報
 
 ---
 
@@ -167,3 +168,4 @@ Inspired by a feature article on inverted pendulums in [Interface Magazine (Sep 
 ### References
 
 - [Interface Magazine article](https://interface.cqpub.co.jp/202509st/)
+- [n_shinichi's inverted pendulum blog post](https://n-shinichi.hatenablog.com/entry/2025/08/31/163903) — Technical guide and sample sketches for M5StickC Plus / Plus2 by the creator of the Interface Magazine kit
