@@ -356,6 +356,9 @@ See [Interface Magazine Sep 2025](https://interface.cqpub.co.jp/202509st/) for d
 > 📐 **上級者向けの理論編もあります / For the rigorous math, see:**
 > **[docs/pid_theory.md](pid_theory.md)** — 運動方程式・状態空間・カルマンフィルタ・安定性解析
 
+> 📖 **専門用語の解説 / Glossary of technical terms:**
+> **[docs/glossary.md](glossary.md)** — 用語を平易な言葉で解説した補足資料集 / Plain-language explanations for every technical term
+
 ---
 
 ## 📚 Source / 出典

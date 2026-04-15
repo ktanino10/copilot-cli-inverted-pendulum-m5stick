@@ -7,6 +7,9 @@
 
 **[日本語](#日本語) | [English](#english)**
 
+> 📖 **専門用語がわからない方へ / Unfamiliar with the terminology?**
+> **[docs/glossary.md](glossary.md)** — すべての専門用語を平易な言葉で解説した補足資料集 / Plain-language glossary for every technical term used in this document
+
 ---
 
 <a id="日本語"></a>
