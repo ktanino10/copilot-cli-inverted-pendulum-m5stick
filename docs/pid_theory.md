@@ -425,8 +425,8 @@ $$
 | Kp | 復元力の強さ（バネ定数に相当） | 高周波振動 | 倒れる |
 | Ki | 定常偏差の除去速度 | 低周波発振・不安定 | ゆっくり傾いていく |
 | Kd | 減衰力（ダンパに相当） | 鈍重な応答 | 振動が止まらない |
-| Kds | 位置復帰力 | 位置の振動 | 走り続ける |
-| Kspd | 速度ブレーキ力 | 位置応答が鈍い | 加速が止まらない |
+| K_ds | 位置復帰力 | 位置の振動 | 走り続ける |
+| K_spd | 速度ブレーキ力 | 位置応答が鈍い | 加速が止まらない |
 
 ---
 
@@ -779,8 +779,8 @@ $$
 | Kp | Spring constant | High-frequency oscillation | Falls over |
 | Ki | Drift corrector | Low-frequency instability | Slow lean |
 | Kd | Viscous damper | Sluggish response | Undamped oscillation |
-| Kds | Position spring | Position oscillation | Runs away |
-| Kspd | Velocity damper | Sluggish translation | Unbounded acceleration |
+| K_ds | Position spring | Position oscillation | Runs away |
+| K_spd | Velocity damper | Sluggish translation | Unbounded acceleration |
 
 ---
 
