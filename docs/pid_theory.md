@@ -273,14 +273,17 @@ H = \begin{bmatrix} 1 & 0 & 0 \end{bmatrix}
 $$
 
 イノベーション：
+
 $$
 y_k = z_k - H\hat{\mathbf{x}}_{k|k-1}
 $$
 
 カルマンゲイン：
+
 $$
 S_k = HP_{k|k-1}H^T + R
 $$
+
 $$
 K_k = P_{k|k-1}H^T S_k^{-1}
 $$
@@ -288,11 +291,13 @@ $$
 $R$ は観測ノイズ分散（加速度センサのノイズ特性）。
 
 状態更新：
+
 $$
 \hat{\mathbf{x}}_{k|k} = \hat{\mathbf{x}}_{k|k-1} + K_k y_k
 $$
 
 共分散更新：
+
 $$
 P_{k|k} = (I - K_k H)P_{k|k-1}
 $$
