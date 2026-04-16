@@ -123,12 +123,40 @@ float kspd = 2.5;
 - 配線修正後、サーボの動作を確認 ✅
 - 再半田付け中に M5StickC Plus が過熱・故障 → 基板ショートによる損傷の可能性大
 - USB 接続するだけで発熱し画面表示なし、復旧不可と判断 → **M5StickC Plus 交換待ち**
-- **次のステップ**: 新しい M5StickC Plus 入手後、半田付け前にジャンパーワイヤーでサーボ動作確認してからメインファームウェア (`inverted_pendulum.ino`) の書き込み＆倒立テスト
 
-##### 購入が必要な部品
+#### 2026-04-16: M5StickC Plus2 で復活・ファームウェア移植完了
 
-- M5StickC Plus（新品交換）
-- デジタルテスター（通電前のショート確認用）
+- M5StickC Plus の代替として **M5StickC Plus2** を入手
+- Plus → Plus2 の移植で判明した差異と解決策を以下にまとめる（⚠️ 同じキットで Plus2 を使う人向け）
+
+##### Plus → Plus2 移植時のトラブルと対策
+
+| # | 問題 | 原因 | 対策 |
+|---|------|------|------|
+| 1 | **画面が表示されない** | `M5.begin()` + `M5.Lcd` は Plus 専用。Plus2 では API が異なる | `M5StickCPlus2.h` をインクルードし、`StickCP2.begin(cfg)` + `StickCP2.Display` を使用 |
+| 2 | **サーボが回らない（PWM出力はOK）** | Plus2 はデフォルトで5V外部出力が無効。HATコネクタから5Vが出ていなかった | `auto cfg = M5.config(); cfg.output_power = true;` で5V出力を有効化 |
+| 3 | **ボタンを押しても制御が止まらない** | Plus の `M5.BtnA.wasPressed()` / `wasClicked()` が Plus2 で期待通りに動作しない | `StickCP2.BtnA.wasReleased()` を使用（ボタンを離した瞬間にトグル） |
+| 4 | **IDLEに切り替わるがモーターが止まらない** | `servo.write(90)` だけでは FS90R が完全停止しないことがある（PWM信号が残る） | `servo.detach()` でPWM信号を完全切断。再開時に `servo.attach()` で再接続 |
+
+##### Plus と Plus2 のハードウェア・API 対応表
+
+| 項目 | M5StickC Plus | M5StickC Plus2 |
+|------|--------------|----------------|
+| 電源IC | AXP192 | AXP2101 |
+| ライブラリ | `M5StickCPlus.h` | `M5StickCPlus2.h` |
+| 初期化 | `M5.begin()` | `auto cfg = M5.config(); StickCP2.begin(cfg);` |
+| 画面 | `M5.Lcd` | `StickCP2.Display` |
+| IMU | `M5.Imu.getGyroData(&gx,&gy,&gz)` | `auto d = StickCP2.Imu.getImuData(); d.gyro.x` |
+| バッテリー | `M5.Axp.GetBatVoltage()` | `StickCP2.Power.getBatteryLevel()` |
+| 5V出力 | `M5.Axp.SetLDO2(true)` | `cfg.output_power = true` |
+| ボタン | `M5.BtnA` / `M5.BtnB` | `StickCP2.BtnA` / `StickCP2.BtnB` |
+| FQBN | `m5stack_stickc_plus` | `m5stack_stickc_plus2` |
+| HATコネクタ | 8ピン | 18ピン（ピン配置変更） |
+
+- サーボ動作テスト (`servo_test.ino`) → G26 で回転確認 ✅
+- メインファームウェア (`inverted_pendulum.ino`) → Plus2 対応に移植、書き込み完了 ✅
+- ボタン操作（Aボタンでスタート/ストップ）動作確認 ✅
+- **次のステップ**: サーボ2本接続して倒立テスト
 
 ### 📚 PID制御ガイド
 
@@ -249,7 +277,40 @@ Inspired by a feature article on inverted pendulums in [Interface Magazine (Sep 
 - Confirmed servo operation after wiring fix ✅
 - M5StickC Plus overheated during re-soldering → likely PCB short damage
 - Unit unresponsive on USB connection → **awaiting replacement**
-- **Next**: After getting a new M5StickC Plus, test servos with jumper wires before soldering, then flash main firmware (`inverted_pendulum.ino`)
+
+#### 2026-04-16: M5StickC Plus2 — firmware ported & working
+
+- Replaced dead M5StickC Plus with **M5StickC Plus2**
+- Ported all firmware from Plus to Plus2 — several breaking differences found and resolved
+
+##### Troubleshooting: Plus → Plus2 Migration
+
+| # | Problem | Root Cause | Fix |
+|---|---------|-----------|-----|
+| 1 | **Screen blank after flash** | `M5.begin()` + `M5.Lcd` are Plus-only APIs | Use `M5StickCPlus2.h`, `StickCP2.begin(cfg)`, `StickCP2.Display` |
+| 2 | **Servo won't spin (PWM signal OK)** | Plus2 disables 5V external output by default — no power on HAT pins | Set `cfg.output_power = true` before `StickCP2.begin(cfg)` |
+| 3 | **Button press doesn't stop control** | `wasPressed()` / `wasClicked()` behave differently on Plus2 | Use `StickCP2.BtnA.wasReleased()` — triggers on button release |
+| 4 | **Motor keeps spinning after IDLE** | `servo.write(90)` alone doesn't fully stop FS90R (residual PWM) | Call `servo.detach()` to kill PWM signal; `servo.attach()` on restart |
+
+##### Plus vs Plus2 API Reference
+
+| Feature | M5StickC Plus | M5StickC Plus2 |
+|---------|--------------|----------------|
+| Power IC | AXP192 | AXP2101 |
+| Library | `M5StickCPlus.h` | `M5StickCPlus2.h` |
+| Init | `M5.begin()` | `auto cfg = M5.config(); StickCP2.begin(cfg);` |
+| Display | `M5.Lcd` | `StickCP2.Display` |
+| IMU | `M5.Imu.getGyroData(&gx,&gy,&gz)` | `auto d = StickCP2.Imu.getImuData(); d.gyro.x` |
+| Battery | `M5.Axp.GetBatVoltage()` | `StickCP2.Power.getBatteryLevel()` |
+| 5V output | `M5.Axp.SetLDO2(true)` | `cfg.output_power = true` |
+| Buttons | `M5.BtnA` / `M5.BtnB` | `StickCP2.BtnA` / `StickCP2.BtnB` |
+| FQBN | `m5stack_stickc_plus` | `m5stack_stickc_plus2` |
+| HAT pins | 8-pin | 18-pin (different layout) |
+
+- Servo test (`servo_test.ino`) — G26 confirmed working ✅
+- Main firmware (`inverted_pendulum.ino`) — ported and flashed ✅
+- Button control (A button start/stop toggle) confirmed ✅
+- **Next**: Connect both servos and attempt balancing test
 
 ### 📚 PID Control Guide
 
