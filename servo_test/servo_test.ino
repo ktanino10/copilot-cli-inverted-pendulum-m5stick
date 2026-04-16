@@ -1,5 +1,5 @@
 /*
- * FS90R ピン探索テスト for M5StickC Plus
+ * FS90R ピン探索テスト for M5StickC Plus2
  *
  * 全ピン(G0, G26, G25, G36)を順番に試して
  * どのピンにサーボが繋がっているか確認するスケッチ
@@ -8,7 +8,7 @@
  * Bボタン: 現在のピンでサーボ正転/停止トグル
  */
 
-#include <M5StickCPlus.h>
+#include <M5StickCPlus2.h>
 #include <ESP32Servo.h>
 
 const int pins[] = {0, 26, 25, 36, 32, 33};
@@ -20,37 +20,40 @@ bool running = false;
 Servo servo;
 
 void updateDisplay() {
-  M5.Lcd.fillScreen(BLACK);
-  M5.Lcd.setTextSize(2);
+  StickCP2.Display.fillScreen(BLACK);
+  StickCP2.Display.setTextSize(2);
 
-  M5.Lcd.setTextColor(YELLOW);
-  M5.Lcd.setCursor(10, 10);
-  M5.Lcd.println("Pin Finder");
+  StickCP2.Display.setTextColor(YELLOW);
+  StickCP2.Display.setCursor(10, 10);
+  StickCP2.Display.println("Pin Finder");
 
-  M5.Lcd.setTextColor(WHITE);
-  M5.Lcd.setCursor(10, 40);
-  M5.Lcd.printf("Pin: %s", pinNames[currentPin]);
+  StickCP2.Display.setTextColor(WHITE);
+  StickCP2.Display.setCursor(10, 40);
+  StickCP2.Display.printf("Pin: %s", pinNames[currentPin]);
 
-  M5.Lcd.setCursor(10, 65);
+  StickCP2.Display.setCursor(10, 65);
   if (running) {
-    M5.Lcd.setTextColor(GREEN);
-    M5.Lcd.println("RUNNING");
+    StickCP2.Display.setTextColor(GREEN);
+    StickCP2.Display.println("RUNNING");
   } else {
-    M5.Lcd.setTextColor(RED);
-    M5.Lcd.println("STOPPED");
+    StickCP2.Display.setTextColor(RED);
+    StickCP2.Display.println("STOPPED");
   }
 
-  M5.Lcd.setTextColor(WHITE);
-  M5.Lcd.setCursor(10, 100);
-  M5.Lcd.println("[A] Next Pin");
-  M5.Lcd.setCursor(10, 125);
-  M5.Lcd.println("[B] Run/Stop");
+  StickCP2.Display.setTextColor(WHITE);
+  StickCP2.Display.setCursor(10, 100);
+  StickCP2.Display.println("[A] Next Pin");
+  StickCP2.Display.setCursor(10, 125);
+  StickCP2.Display.println("[B] Run/Stop");
 }
 
 void setup() {
-  M5.begin();
-  M5.Lcd.setRotation(3);
+  auto cfg = M5.config();
+  cfg.output_power = true;  // 5V外部出力を有効化
+  StickCP2.begin(cfg);
+  StickCP2.Display.setRotation(3);
   Serial.begin(115200);
+  Serial.println("=== Servo Pin Finder (Plus2) ===");
 
   servo.attach(pins[currentPin]);
   servo.write(90);
@@ -59,10 +62,10 @@ void setup() {
 }
 
 void loop() {
-  M5.update();
+  StickCP2.update();
 
   // Aボタン: 次のピンへ
-  if (M5.BtnA.wasPressed()) {
+  if (StickCP2.BtnA.wasPressed()) {
     servo.write(90);
     servo.detach();
     running = false;
@@ -76,7 +79,7 @@ void loop() {
   }
 
   // Bボタン: 回転/停止トグル
-  if (M5.BtnB.wasPressed()) {
+  if (StickCP2.BtnB.wasPressed()) {
     running = !running;
     if (running) {
       servo.write(130);

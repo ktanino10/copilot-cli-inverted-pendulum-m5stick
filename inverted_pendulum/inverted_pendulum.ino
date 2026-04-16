@@ -1,9 +1,9 @@
 /*
  * 倒立振子 (Inverted Pendulum) メイン制御ファームウェア
- * for M5StickC Plus + FS90R サーボ × 2
+ * for M5StickC Plus2 + FS90R サーボ × 2
  *
  * Hardware:
- *   - M5StickC Plus (ESP32, IMU: MPU6886)
+ *   - M5StickC Plus2 (ESP32, IMU: MPU6886)
  *   - FS90R 連続回転サーボ × 2
  *   - Servo1 PWM: G0,  Servo2 PWM: G26
  *
@@ -13,14 +13,14 @@
  *   3. もう一度長押し → 制御ストップ
  *
  * Libraries (Arduino IDE):
- *   - M5StickCPlus  (Board: M5Stack)
- *   - Kalman        (TKJElectronics/KalmanFilter)
+ *   - M5StickCPlus2  (Board: M5Stack)
+ *   - Kalman         (TKJElectronics/KalmanFilter)
  *   - ESP32Servo
  *
  * Based on Interface Magazine 2025/09
  */
 
-#include <M5StickCPlus.h>
+#include <M5StickCPlus2.h>
 #include <Kalman.h>
 #include <ESP32Servo.h>
 
@@ -103,12 +103,12 @@ bool btnIsDown = false;
 // ジャイロオフセットをキャリブレーション (静止状態で呼ぶ)
 void calibrateGyro() {
   float sumX = 0, sumY = 0, sumZ = 0;
-  float gx, gy, gz;
+  auto imu_update = StickCP2.Imu.getImuData();
   for (int i = 0; i < GYRO_CAL_SAMPLES; i++) {
-    M5.Imu.getGyroData(&gx, &gy, &gz);
-    sumX += gx;
-    sumY += gy;
-    sumZ += gz;
+    imu_update = StickCP2.Imu.getImuData();
+    sumX += imu_update.gyro.x;
+    sumY += imu_update.gyro.y;
+    sumZ += imu_update.gyro.z;
     delay(5);
   }
   gyroXOffset = sumX / GYRO_CAL_SAMPLES;
@@ -116,13 +116,9 @@ void calibrateGyro() {
   gyroZOffset = sumZ / GYRO_CAL_SAMPLES;
 }
 
-// 加速度センサから傾斜角を取得 [deg]
-// M5StickC Plus を縦に取り付けた場合の Pitch 角
-// ※取り付け向きが異なる場合は ax/ay/az の組合せを変更
 float getAccAngle() {
-  float ax, ay, az;
-  M5.Imu.getAccelData(&ax, &ay, &az);
-  return atan2(ay, az) * RAD_TO_DEG;
+  auto data = StickCP2.Imu.getImuData();
+  return atan2(data.accel.y, data.accel.z) * RAD_TO_DEG;
 }
 
 // ============================================================
@@ -190,50 +186,48 @@ int computePID(float angle, float gyroRate, float dt) {
 // ============================================================
 
 void updateDisplay() {
-  M5.Lcd.fillScreen(BLACK);
-  M5.Lcd.setTextSize(2);
+  StickCP2.Display.fillScreen(BLACK);
+  StickCP2.Display.setTextSize(2);
 
   // ステータス
-  M5.Lcd.setCursor(5, 5);
+  StickCP2.Display.setCursor(5, 5);
   if (state == RUNNING) {
-    M5.Lcd.setTextColor(GREEN);
-    M5.Lcd.print("RUNNING");
+    StickCP2.Display.setTextColor(GREEN);
+    StickCP2.Display.print("RUNNING");
   } else {
-    M5.Lcd.setTextColor(ORANGE);
-    M5.Lcd.print("IDLE");
+    StickCP2.Display.setTextColor(ORANGE);
+    StickCP2.Display.print("IDLE");
   }
 
   // バッテリー電圧
-  float vbat = M5.Axp.GetBatVoltage();
-  M5.Lcd.setTextColor(
-    vbat > 3.5 ? WHITE : RED  // 低電圧警告
-  );
-  M5.Lcd.setCursor(170, 5);
-  M5.Lcd.printf("%.1fV", vbat);
+  int bat = StickCP2.Power.getBatteryLevel();
+  StickCP2.Display.setTextColor(bat > 20 ? WHITE : RED);
+  StickCP2.Display.setCursor(170, 5);
+  StickCP2.Display.printf("%d%%", bat);
 
   // 区切り線
-  M5.Lcd.drawFastHLine(0, 28, 240, DARKGREY);
+  StickCP2.Display.drawFastHLine(0, 28, 240, DARKGREY);
 
   // 傾斜角
   float angle = kalmanAngle - angleOffset;
-  M5.Lcd.setTextColor(WHITE);
-  M5.Lcd.setCursor(5, 35);
-  M5.Lcd.printf("Ang:%+6.1f", angle);
+  StickCP2.Display.setTextColor(WHITE);
+  StickCP2.Display.setCursor(5, 35);
+  StickCP2.Display.printf("Ang:%+6.1f", angle);
 
   // モーター出力
-  M5.Lcd.setCursor(5, 58);
-  M5.Lcd.printf("Out:%+4d", motorOutput);
+  StickCP2.Display.setCursor(5, 58);
+  StickCP2.Display.printf("Out:%+4d", motorOutput);
 
   // ジャイロ
-  M5.Lcd.setCursor(5, 81);
-  M5.Lcd.printf("Gyr:%+6.1f", currentGyro);
+  StickCP2.Display.setCursor(5, 81);
+  StickCP2.Display.printf("Gyr:%+6.1f", currentGyro);
 
   // 操作説明
-  M5.Lcd.drawFastHLine(0, 105, 240, DARKGREY);
-  M5.Lcd.setTextColor(YELLOW);
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(5, 112);
-  M5.Lcd.print("[M5] Long press: Start / Stop");
+  StickCP2.Display.drawFastHLine(0, 105, 240, DARKGREY);
+  StickCP2.Display.setTextColor(YELLOW);
+  StickCP2.Display.setTextSize(1);
+  StickCP2.Display.setCursor(5, 112);
+  StickCP2.Display.print("[M5] Long press: Start / Stop");
 }
 
 // ============================================================
@@ -261,20 +255,21 @@ void stopControl() {
 // ============================================================
 
 void setup() {
-  M5.begin();
-  M5.Lcd.setRotation(3);   // 横向き
-  M5.Imu.Init();
+  auto cfg = M5.config();
+  cfg.output_power = true;  // 5V外部出力を有効化
+  StickCP2.begin(cfg);
+  StickCP2.Display.setRotation(3);   // 横向き
   Serial.begin(115200);
 
   // --- キャリブレーション画面 ---
-  M5.Lcd.fillScreen(BLACK);
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.setTextColor(YELLOW);
-  M5.Lcd.setCursor(10, 20);
-  M5.Lcd.println("Calibrating...");
-  M5.Lcd.setTextColor(WHITE);
-  M5.Lcd.setCursor(10, 50);
-  M5.Lcd.println("Keep still!");
+  StickCP2.Display.fillScreen(BLACK);
+  StickCP2.Display.setTextSize(2);
+  StickCP2.Display.setTextColor(YELLOW);
+  StickCP2.Display.setCursor(10, 20);
+  StickCP2.Display.println("Calibrating...");
+  StickCP2.Display.setTextColor(WHITE);
+  StickCP2.Display.setCursor(10, 50);
+  StickCP2.Display.println("Keep still!");
 
   // ジャイロキャリブレーション
   calibrateGyro();
@@ -309,15 +304,15 @@ void setup() {
 // ============================================================
 
 void loop() {
-  M5.update();
+  StickCP2.update();
   unsigned long now = millis();
 
   // ---- ボタン処理 (M5 長押し) ----
-  if (M5.BtnA.wasPressed()) {
+  if (StickCP2.BtnA.wasPressed()) {
     btnDownTime = now;
     btnIsDown = true;
   }
-  if (M5.BtnA.wasReleased()) {
+  if (StickCP2.BtnA.wasReleased()) {
     if (btnIsDown && (now - btnDownTime >= LONG_PRESS_MS)) {
       if (state == IDLE) {
         startControl();
@@ -334,9 +329,9 @@ void loop() {
     prevControlTime = now;
 
     // IMU 読み取り
-    float ax, ay, az, gx, gy, gz;
-    M5.Imu.getAccelData(&ax, &ay, &az);
-    M5.Imu.getGyroData(&gx, &gy, &gz);
+    auto imu = StickCP2.Imu.getImuData();
+    float ax = imu.accel.x, ay = imu.accel.y, az = imu.accel.z;
+    float gx = imu.gyro.x,  gy = imu.gyro.y,  gz = imu.gyro.z;
 
     // ジャイロオフセット補正
     gx -= gyroXOffset;
