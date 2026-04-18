@@ -46,12 +46,12 @@ int motor_offsetR = 0;
 // ============================================================
 //  PID パラメータ（チューニング用：初期値0、ボタンで調整）
 // ============================================================
-float kpower = 0.003;   // 全体スケール（固定）
-float kp     = 20.0;    // P項: 大きめにして応答を確認
-float ki     = 0.0;     // I項
-float kd     = 0.0;     // D項
-float kspd   = 0.0;     // 速度補正
-float kdst   = 0.0;     // 位置補正
+float kpower = 0.003;   // 全体スケール
+float kp     = 30.0;   // P項（大きめ）
+float ki     = 3.0;    // I項
+float kd     = 2.0;    // D項
+float kspd   = 5.0;    // 速度補正
+float kdst   = 0.14;   // 位置補正
 
 // チューニングUI
 int tuneParam = 0;       // 0=kp, 1=kd, 2=ki, 3=kspd, 4=kdst
@@ -183,8 +183,20 @@ void PID_reset() {
 }
 
 void PID_ctrl() {
-  // シンプルP制御のみ（まず方向確認用）
-  power = (int16_t)(-kp * Angle);  // 符号反転: 倒れる方向に追いかける
+  // n_shinichi氏のフルPID制御（符号反転済み）
+  Speed += kpower * power;
+  P_Angle = -kp * Angle;
+  I_Angle += -ki * Angle - kdst * Speed;
+  D_Angle = -kd * dAngle;
+  k_speed = -kspd * Speed;
+
+  power = P_Angle + I_Angle + D_Angle + k_speed;
+
+  // Anti-windup
+  if (I_Angle > I_LIMIT || I_Angle < -I_LIMIT) {
+    power = Speed = I_Angle = 0;
+  }
+
   power = constrain(power, -500, 500);
 
   if (motor_sw == 1) {
@@ -233,9 +245,9 @@ void updateDisplay() {
   // 操作説明
   StickCP2.Display.setCursor(0, 90);
   StickCP2.Display.setTextColor(CYAN);
-  StickCP2.Display.printf("[A]ON/OFF [B]%s+%.1f", paramNames[tuneParam], paramStep);
+  StickCP2.Display.printf("[A]ON/OFF [B]Offset %.1f", Pitch_offset);
   StickCP2.Display.setCursor(0, 102);
-  StickCP2.Display.printf("[A long]Param [B long]Step");
+  StickCP2.Display.printf("[B short]+0.5 [B long]-0.5");
   
   // バッテリー
   StickCP2.Display.setCursor(0, 118);
@@ -374,24 +386,22 @@ void loop() {
       btnA_down = 0;
     }
     
-    // BtnB短押し: パラメータ+step、長押し: ステップ切替
+    // BtnB短押し: Pitch_offset +0.5°、長押し: -0.5°
     static unsigned long btnB_down = 0;
     if (digitalRead(BTN_B) == 0) {
       if (btnB_down == 0) btnB_down = millis();
       if (millis() - btnB_down > 800) {
-        // 長押し: ステップ切替 (0.1 → 1.0 → 0.01 → 0.1)
-        if (paramStep >= 1.0) paramStep = 0.01;
-        else if (paramStep >= 0.1) paramStep = 1.0;
-        else paramStep = 0.1;
-        Serial.printf("STEP: %.2f\n", paramStep);
+        // 長押し: offset -0.5（後ろに補正）
+        Pitch_offset -= 0.5;
+        Serial.printf("OFFSET: %.1f (backward)\n", Pitch_offset);
         btnB_down = 0;
         delay(300);
       }
     } else {
       if (btnB_down > 0 && millis() - btnB_down < 800) {
-        // 短押し: パラメータ増加
-        *paramPtrs[tuneParam] += paramStep;
-        Serial.printf("SET %s=%.2f\n", paramNames[tuneParam], *paramPtrs[tuneParam]);
+        // 短押し: offset +0.5（前に補正）
+        Pitch_offset += 0.5;
+        Serial.printf("OFFSET: %.1f (forward)\n", Pitch_offset);
       }
       btnB_down = 0;
     }
