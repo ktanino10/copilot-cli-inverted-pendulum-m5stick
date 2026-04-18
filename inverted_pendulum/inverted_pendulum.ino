@@ -34,10 +34,10 @@ int16_t motor_init_L = 1500, motor_init_R = 1500;
 float kpower = 0.003;
 float kp = 50.0;
 float ki = 2.0;
-float kd = 10.0;
+float kd = 15.0;
 float kspd = 5.0;
 float kdst = 0.14;
-float Pitch_offset2 = 0.0;
+float Pitch_offset2 = 5.0;
 float Pitch_power = 0.0;
 int fil_N = 5;
 
