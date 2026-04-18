@@ -196,7 +196,7 @@ void PID_ctrl() {
 
   if (motor_sw == 1) {
     powerL = -power + motor_offsetL + MOTOR_NEUTRAL;
-    powerR = -power + motor_offsetR + MOTOR_NEUTRAL;
+    powerR =  power + motor_offsetR + MOTOR_NEUTRAL;
     pulse_drive(powerL, powerR);
   } else {
     digitalWrite(MOTOR_PIN_L, LOW);
@@ -326,10 +326,9 @@ void loop() {
           PID_ctrl();
         }
       } else {
+        // 角度超過: PIDリセットだけ（モーターは止めない、自然に戻るのを待つ）
         PID_reset();
         servo_stop();
-        motor_sw = 0;
-        Serial.println("!!! ANGLE LIMIT - emergency stop !!!");
       }
     }
     ms10 += 10;
