@@ -155,9 +155,10 @@ void applyCalibration() {
 }
 
 float getPitch() {
-  // Plus2直立時: Z軸が前後傾き（前=Z-、後ろ=Z+）
-  // Y軸が重力方向
-  return atan2(-acc[2], acc[1]) * RAD_TO_DEG;
+  // Z軸をそのまま角度に変換（前=Z-、後ろ=Z+）
+  // asin で正確な角度を取得（-1~+1 を -90~+90° に）
+  float val = constrain(-acc[2], -1.0, 1.0);
+  return asin(val) * RAD_TO_DEG;
 }
 
 // ============================================================
