@@ -195,8 +195,8 @@ void PID_ctrl() {
   }
 
   if (motor_sw == 1) {
-    powerL = power + motor_offsetL + MOTOR_NEUTRAL;
-    powerR = power + motor_offsetR + MOTOR_NEUTRAL;
+    powerL =  power + motor_offsetL + MOTOR_NEUTRAL;
+    powerR = -power + motor_offsetR + MOTOR_NEUTRAL;
     pulse_drive(powerL, powerR);
   } else {
     digitalWrite(MOTOR_PIN_L, LOW);
