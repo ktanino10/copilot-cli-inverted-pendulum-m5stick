@@ -174,7 +174,8 @@ float kspd = 2.5;
 
 <img src="media/servo_test_20260418.jpg" width="400" alt="両輪サーボ駆動テスト成功">
 
-<!-- TODO: YouTubeリンクを追加 -->
+<!-- YouTube: 両輪サーボ駆動テスト -->
+[![両輪サーボ駆動テスト](https://img.youtube.com/vi/syauXEm0TFY/0.jpg)](https://www.youtube.com/watch?v=syauXEm0TFY)
 
 ##### 判明した追加の問題と対策
 
@@ -359,7 +360,8 @@ After the 4/16 struggles, started completely fresh. Research into n_shinichi's o
 
 <img src="media/servo_test_20260418.jpg" width="400" alt="Both servos running successfully">
 
-<!-- TODO: Add YouTube link -->
+<!-- YouTube: Dual servo test -->
+[![Dual servo drive test](https://img.youtube.com/vi/syauXEm0TFY/0.jpg)](https://www.youtube.com/watch?v=syauXEm0TFY)
 
 ##### Additional issues found and fixed
 
