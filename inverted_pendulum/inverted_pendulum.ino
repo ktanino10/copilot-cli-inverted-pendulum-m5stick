@@ -62,10 +62,9 @@ float paramStep = 0.1;   // 調整ステップ
 // ============================================================
 //  制御パラメータ
 // ============================================================
-#define ANGLE_LIMIT      30.0   // 緊急停止角度 [deg]
+#define ANGLE_LIMIT      45.0   // 緊急停止角度 [deg]
 #define I_LIMIT         300.0   // 積分項上限 (anti-windup)
 #define GYRO_CAL_SAMPLES 500    // ジャイロキャリブレーション回数
-#define PITCH_OFFSET    81.0    // IMU取り付け角度補正
 #define FIL_N            5      // ローパスフィルタ係数
 
 // ============================================================
@@ -81,6 +80,7 @@ float dAngle;
 
 // 制御状態
 float Pitch, Pitch_filter, Angle;
+float Pitch_offset = 0;  // ONにした瞬間の角度を基準にする
 float Speed, Power;
 float P_Angle, I_Angle, D_Angle, k_speed;
 int16_t power, powerL, powerR;
@@ -166,9 +166,9 @@ void get_Angle() {
   applyCalibration();
   float dt = (micros() - lastUs) / 1000000.0;
   lastUs = micros();
-  Pitch = kalman.getAngle(getPitch(), gyro[0], dt) + PITCH_OFFSET;
+  Pitch = kalman.getAngle(getPitch(), gyro[0], dt);
   Pitch_filter = (Pitch + Pitch_filter * (FIL_N - 1)) / FIL_N;
-  Angle = Pitch_filter;
+  Angle = Pitch_filter - Pitch_offset;
 }
 
 // ============================================================
@@ -321,7 +321,7 @@ void loop() {
   if (millis() > ms10) {
     if (-ANGLE_LIMIT < Pitch_filter && Pitch_filter < ANGLE_LIMIT) {
       wait_count++;
-      if (wait_count > 200) {
+      if (wait_count > 50) {
         PID_ctrl();
       }
     } else {
@@ -355,11 +355,16 @@ void loop() {
       if (btnA_down > 0 && millis() - btnA_down < 800) {
         // 短押し: モーターON/OFF
         motor_sw = !motor_sw;
-        if (motor_sw == 0) {
+        if (motor_sw == 1) {
+          // ONにした瞬間の角度を基準にする
+          Pitch_offset = Pitch_filter;
+          PID_reset();
+          Serial.printf("Motor: ON (offset=%.1f)\n", Pitch_offset);
+        } else {
           PID_reset();
           servo_stop();
+          Serial.println("Motor: OFF");
         }
-        Serial.printf("Motor: %s\n", motor_sw ? "ON" : "OFF");
       }
       btnA_down = 0;
     }
