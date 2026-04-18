@@ -32,9 +32,9 @@
 int motor_offsetL = 0, motor_offsetR = 0;
 int16_t motor_init_L = 1500, motor_init_R = 1500;
 float kpower = 0.003;
-float kp = 120.0;
-float ki = 5.0;
-float kd = 20.0;
+float kp = 50.0;
+float ki = 2.0;
+float kd = 10.0;
 float kspd = 5.0;
 float kdst = 0.14;
 float Pitch_offset2 = 0.0;
@@ -142,14 +142,12 @@ void PID_ctrl() {
   Speed += kpower * power;
   P_Angle = -kp * Angle;
   I_Angle += -ki * Angle - kdst * Speed;
+  I_Angle = constrain(I_Angle, -200, 200);  // I項を厳しく制限
   D_Angle = -kd * dAngle;
   k_speed = -kspd * Speed;
 
   power = P_Angle + I_Angle + D_Angle + k_speed;
-
-  if (I_Angle > 300 || I_Angle < -300) {
-    power = Speed = I_Angle = Pitch_power = 0;
-  }
+  power = constrain(power, -400, 400);  // 出力を±400μsに制限
 
   if (motor_sw == 1) {
     powerL =  power + motor_offsetL + motor_init_L;
