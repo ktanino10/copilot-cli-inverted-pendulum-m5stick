@@ -44,14 +44,20 @@ int motor_offsetL = 0;
 int motor_offsetR = 0;
 
 // ============================================================
-//  PID パラメータ (n_shinichi氏のPlus2用デフォルト値)
+//  PID パラメータ（チューニング用：初期値0、ボタンで調整）
 // ============================================================
-float kpower = 0.003;
-float kp     = 6.3;
-float ki     = 1.4;
-float kd     = 0.48;
-float kspd   = 5.0;
-float kdst   = 0.14;
+float kpower = 0.003;   // 全体スケール（固定）
+float kp     = 0.0;     // P項: BtnBで調整
+float ki     = 0.0;     // I項
+float kd     = 0.0;     // D項
+float kspd   = 0.0;     // 速度補正
+float kdst   = 0.0;     // 位置補正
+
+// チューニングUI
+int tuneParam = 0;       // 0=kp, 1=kd, 2=ki, 3=kspd, 4=kdst
+const char* paramNames[] = {"kp", "kd", "ki", "kspd", "kdst"};
+float* paramPtrs[5];     // setup()で初期化
+float paramStep = 0.1;   // 調整ステップ
 
 // ============================================================
 //  制御パラメータ
@@ -189,8 +195,8 @@ void PID_ctrl() {
   }
 
   if (motor_sw == 1) {
-    powerL = -power + motor_offsetL + MOTOR_NEUTRAL;
-    powerR =  power + motor_offsetR + MOTOR_NEUTRAL;
+    powerL =  power + motor_offsetL + MOTOR_NEUTRAL;
+    powerR = -power + motor_offsetR + MOTOR_NEUTRAL;
     pulse_drive(powerL, powerR);
   } else {
     digitalWrite(MOTOR_PIN_L, LOW);
@@ -202,20 +208,46 @@ void PID_ctrl() {
 //  ディスプレイ
 // ============================================================
 void updateDisplay() {
-  StickCP2.Display.setCursor(0, 25);
+  StickCP2.Display.fillScreen(BLACK);
   StickCP2.Display.setTextSize(2);
+  
+  // 状態
+  StickCP2.Display.setCursor(0, 0);
   if (motor_sw == 1) {
-    StickCP2.Display.setTextColor(GREEN, BLACK);
-    StickCP2.Display.printf("ON    ");
+    StickCP2.Display.setTextColor(GREEN);
+    StickCP2.Display.printf("ON ");
   } else {
-    StickCP2.Display.setTextColor(RED, BLACK);
-    StickCP2.Display.printf("OFF   ");
+    StickCP2.Display.setTextColor(RED);
+    StickCP2.Display.printf("OFF");
   }
-  StickCP2.Display.setTextColor(WHITE, BLACK);
-  StickCP2.Display.printf(" %5.1f  ", Angle);
-
-  StickCP2.Display.setCursor(0, 50);
-  StickCP2.Display.printf("%.1fV  L:%4d R:%4d  ", batt, powerL, powerR);
+  StickCP2.Display.setTextColor(WHITE);
+  StickCP2.Display.printf(" A:%5.1f", Angle);
+  
+  // 現在のパラメータ（選択中はハイライト）
+  StickCP2.Display.setTextSize(1);
+  for (int i = 0; i < 5; i++) {
+    StickCP2.Display.setCursor(0, 25 + i * 12);
+    if (i == tuneParam) {
+      StickCP2.Display.setTextColor(YELLOW);
+      StickCP2.Display.printf("> ");
+    } else {
+      StickCP2.Display.setTextColor(DARKGREY);
+      StickCP2.Display.printf("  ");
+    }
+    StickCP2.Display.printf("%s=%5.2f", paramNames[i], *paramPtrs[i]);
+  }
+  
+  // 操作説明
+  StickCP2.Display.setCursor(0, 90);
+  StickCP2.Display.setTextColor(CYAN);
+  StickCP2.Display.printf("[A]ON/OFF [B]%s+%.1f", paramNames[tuneParam], paramStep);
+  StickCP2.Display.setCursor(0, 102);
+  StickCP2.Display.printf("[A long]Param [B long]Step");
+  
+  // バッテリー
+  StickCP2.Display.setCursor(0, 118);
+  StickCP2.Display.setTextColor(WHITE);
+  StickCP2.Display.printf("%.1fV  L:%4d R:%4d", batt, powerL, powerR);
 }
 
 // ============================================================
@@ -238,6 +270,13 @@ void setup() {
 
   // IMU初期化
   M5.Imu.begin();
+  
+  // パラメータポインタ初期化
+  paramPtrs[0] = &kp;
+  paramPtrs[1] = &kd;
+  paramPtrs[2] = &ki;
+  paramPtrs[3] = &kspd;
+  paramPtrs[4] = &kdst;
 
   // キャリブレーション画面
   StickCP2.Display.fillScreen(BLACK);
@@ -267,7 +306,9 @@ void setup() {
 
   ms10 = ms100 = ms1000 = millis();
 
-  Serial.println("=== Inverted Pendulum Ready (pulse_drive) ===");
+  Serial.println("=== Inverted Pendulum Ready (pulse_drive + tuning) ===");
+  Serial.println("CSV: DATA,time_ms,angle,dAngle,powerL,powerR,kp,kd,ki,kspd,kdst");
+  Serial.println("[A short]ON/OFF [A long]Param [B short]+step [B long]Step size");
 }
 
 // ============================================================
@@ -293,15 +334,56 @@ void loop() {
   if (millis() > ms100) {
     updateDisplay();
     
-    // BtnA: モーターON/OFFトグル
+    // シリアルCSVログ（ROOT用データ収集）
+    if (motor_sw == 1) {
+      Serial.printf("DATA,%lu,%.2f,%.2f,%d,%d,%.2f,%.2f,%.2f,%.2f,%.2f\n",
+        millis(), Angle, dAngle, powerL, powerR, kp, kd, ki, kspd, kdst);
+    }
+    
+    // BtnA短押し: モーターON/OFF、長押し: パラメータ切替
+    static unsigned long btnA_down = 0;
     if (digitalRead(BTN_A) == 0) {
-      motor_sw = !motor_sw;
-      if (motor_sw == 0) {
-        PID_reset();
-        servo_stop();
+      if (btnA_down == 0) btnA_down = millis();
+      if (millis() - btnA_down > 800) {
+        // 長押し: パラメータ切替
+        tuneParam = (tuneParam + 1) % 5;
+        Serial.printf("PARAM: %s\n", paramNames[tuneParam]);
+        btnA_down = 0;
+        delay(300);
       }
-      Serial.printf("Motor: %s\n", motor_sw ? "ON" : "OFF");
-      delay(300);  // デバウンス
+    } else {
+      if (btnA_down > 0 && millis() - btnA_down < 800) {
+        // 短押し: モーターON/OFF
+        motor_sw = !motor_sw;
+        if (motor_sw == 0) {
+          PID_reset();
+          servo_stop();
+        }
+        Serial.printf("Motor: %s\n", motor_sw ? "ON" : "OFF");
+      }
+      btnA_down = 0;
+    }
+    
+    // BtnB短押し: パラメータ+step、長押し: ステップ切替
+    static unsigned long btnB_down = 0;
+    if (digitalRead(BTN_B) == 0) {
+      if (btnB_down == 0) btnB_down = millis();
+      if (millis() - btnB_down > 800) {
+        // 長押し: ステップ切替 (0.1 → 1.0 → 0.01 → 0.1)
+        if (paramStep >= 1.0) paramStep = 0.01;
+        else if (paramStep >= 0.1) paramStep = 1.0;
+        else paramStep = 0.1;
+        Serial.printf("STEP: %.2f\n", paramStep);
+        btnB_down = 0;
+        delay(300);
+      }
+    } else {
+      if (btnB_down > 0 && millis() - btnB_down < 800) {
+        // 短押し: パラメータ増加
+        *paramPtrs[tuneParam] += paramStep;
+        Serial.printf("SET %s=%.2f\n", paramNames[tuneParam], *paramPtrs[tuneParam]);
+      }
+      btnB_down = 0;
     }
     
     ms100 += 100;
