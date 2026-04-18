@@ -129,7 +129,7 @@ void readIMU() {
   M5.Imu.getAccel(&ax, &ay, &az);
   gyro[0] = gx; gyro[1] = gy; gyro[2] = gz;
   acc[0] = ax;  acc[1] = ay;  acc[2] = az;
-  dAngle = -(gyro[2] - gyroOffset[2]);  // Z軸ジャイロ（前後の回転）
+  dAngle = (gyro[2] - gyroOffset[2]);  // 符号反転
 }
 
 void calibrateIMU() {
@@ -155,9 +155,9 @@ void applyCalibration() {
 }
 
 float getPitch() {
-  // Z軸をそのまま角度に変換（前=Z-、後ろ=Z+）
-  // asin で正確な角度を取得（-1~+1 を -90~+90° に）
-  float val = constrain(-acc[2], -1.0, 1.0);
+  // Z軸: 前=Z-、後ろ=Z+
+  // 倒立制御: 倒れる方向に追いかける → 符号反転
+  float val = constrain(acc[2], -1.0, 1.0);
   return asin(val) * RAD_TO_DEG;
 }
 
@@ -169,7 +169,7 @@ void get_Angle() {
   applyCalibration();
   float dt = (micros() - lastUs) / 1000000.0;
   lastUs = micros();
-  Pitch = kalman.getAngle(getPitch(), -gyro[2], dt);  // Z軸ジャイロ
+  Pitch = kalman.getAngle(getPitch(), gyro[2], dt);  // Z軸ジャイロ（符号反転）
   Pitch_filter = (Pitch + Pitch_filter * (FIL_N - 1)) / FIL_N;
   Angle = Pitch - Pitch_offset;
 }
