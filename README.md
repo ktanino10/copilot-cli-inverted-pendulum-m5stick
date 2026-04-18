@@ -188,6 +188,46 @@ float kspd = 2.5;
 - **マイクロ秒制御**: `servo.write(90)` の角度指定ではなく、1500μs = 停止、500-2500μs = 速度制御のμsベースが正確
 - **パルス制御の副作用**: 停止のつもりで1500μsパルスを出し続けると、ニュートラルずれのあるサーボが微回転する。完全停止にはパルスを止める必要がある
 
+#### 2026-04-18: 方向制御の確立 — IMU軸の特定と全制御系の完成 🎯
+
+前日の pulse_drive 成功に続き、PID制御の方向を正しく設定。**多くの試行錯誤**の末、全制御系が正しく動作するに至った。
+
+##### 解決した問題と得られた知見
+
+| # | 問題 | 原因 | 対策 |
+|---|------|------|------|
+| 9 | **ONにしてもモーターが動かない** | `PITCH_OFFSET=81.0` の定数が残っていて Angle が常に大きな値 → ANGLE_LIMIT 超過で PID が動かない | PITCH_OFFSET 定数を削除。ON にした瞬間の Pitch を基準値として自動設定 |
+| 10 | **ボタンが反応しない** | `digitalRead(BTN_A)` が1秒ループ内にあり、タイミング不一致 | 100ms ループに移動 + 300ms デバウンス |
+| 11 | **数秒でOFFになる** | ANGLE_LIMIT 超過時に `motor_sw=0` にリセットしていた | PID リセットのみ行い、motor_sw は ON のまま維持 |
+| 12 | **前後どちらに傾けても同じ方向に進む** | `atan2(acc[1], acc[2])` が直立付近（90°付近）では前後の傾きに対して同符号を返す。Plus2 の IMU 取り付け向きでは Y/Z 軸ではなく **Z 軸が前後の傾き方向** | IMU 軸確認ツールで実機テスト → **Z 軸が前後傾き**と特定。`getPitch()` を `asin(-acc[2])` に変更 |
+| 13 | **モーター方向がスピンする** | サーボの取り付け向きが不明で、`+power/+power`、`-power/-power`、`+power/-power`、`-power/+power` の4パターンが未確定 | 4パターン方向テストスケッチで実機確認 → **`+power/-power` が前進**と確定 |
+
+##### IMU 軸の特定手順（再現可能な方法）
+
+1. IMU軸確認スケッチ（`motor_dir_test.ino`）を書き込む — 画面に X/Y/Z の加速度をリアルタイム表示
+2. ロボットを直立させて各軸の値を確認
+3. **前に傾ける** → どの軸が変化するか記録
+4. **後ろに傾ける** → 同じ軸が逆符号に変化するか確認
+5. その軸を `getPitch()` で使用
+
+本プロジェクトの M5StickC Plus2 では：
+- **X 軸**: 変化しない（左右方向）
+- **Y 軸**: 少し変化（重力方向）
+- **Z 軸**: 大きく変化（**前後方向** — 前=マイナス、後ろ=プラス）
+
+##### 確定した制御パラメータ
+
+```
+モーターピン: G0 (左), G26 (右)
+モーター方向: powerL = +power, powerR = -power
+IMU角度: getPitch() = asin(-acc[2])
+ジャイロ: -gyro[2]（Z軸）
+電源: BAT端子からサーボ給電
+```
+
+- 前後応答テスト → **前に傾けたら前、後ろに傾けたら後ろに移動** ✅
+- **次のステップ**: PIDチューニング（kp → kd → ki の順に手動調整）
+
 ### 📚 PID制御ガイド
 
 PID制御の基礎を初心者向けに解説したガイドを用意しました。ほうきバランスの例え話から、倒立振子への応用、パラメータ調整の手順まで、Interface誌の内容をベースにわかりやすくまとめています。
@@ -371,6 +411,46 @@ After the 4/16 struggles, started completely fresh. Research into n_shinichi's o
 - **ESP32Servo vs pulse_drive**: `servo.attach()` occupies LEDC channels and breaks G0 boot. Manual `digitalWrite` pulses are safe for G0
 - **Microsecond control**: Use μs-based control (1500μs = stop, 500-2500μs = speed) instead of `servo.write(90)` angle-based
 - **Pulse side-effect**: Continuously sending 1500μs "stop" pulses causes servos with neutral offset to micro-rotate. True stop requires no pulses at all
+
+#### 2026-04-18: Direction control established — IMU axis identification & full control system 🎯
+
+Following the pulse_drive success, established correct PID control direction through extensive trial and error.
+
+##### Issues resolved and lessons learned
+
+| # | Problem | Root Cause | Fix |
+|---|---------|-----------|-----|
+| 9 | **Motors don't move when ON** | `PITCH_OFFSET=81.0` constant caused Angle to always exceed ANGLE_LIMIT → PID never activated | Removed constant. Auto-set Pitch reference when turning ON |
+| 10 | **Button unresponsive** | `digitalRead` in 1-second loop | Moved to 100ms loop + debounce |
+| 11 | **Auto-OFF after seconds** | ANGLE_LIMIT exceeded → `motor_sw=0` | Only reset PID, keep motor ON |
+| 12 | **Same direction regardless of tilt** | `atan2(acc[1], acc[2])` returns same sign at ~90° (upright). On Plus2, **Z-axis is the forward/backward tilt axis** | Built IMU axis viewer tool → identified Z-axis. Changed `getPitch()` to `asin(-acc[2])` |
+| 13 | **Motors spin (opposite directions)** | Unknown servo mounting orientation | Built 4-pattern direction test → confirmed **`+power/-power` = forward** |
+
+##### How to identify the correct IMU axis (reproducible method)
+
+1. Flash the IMU axis viewer sketch — displays X/Y/Z accelerometer values on screen
+2. Hold robot upright and note values
+3. **Tilt forward** → which axis changes?
+4. **Tilt backward** → does the same axis change with opposite sign?
+5. Use that axis in `getPitch()`
+
+For this M5StickC Plus2 build:
+- **X-axis**: No change (left/right)
+- **Y-axis**: Slight change (gravity)
+- **Z-axis**: Large change (**forward/backward** — forward=minus, backward=plus)
+
+##### Confirmed control parameters
+
+```
+Motor pins: G0 (left), G26 (right)
+Motor direction: powerL = +power, powerR = -power
+IMU angle: getPitch() = asin(-acc[2])
+Gyro: -gyro[2] (Z-axis)
+Power: BAT pin for servo supply
+```
+
+- Forward/backward response test → **tilt forward=move forward, tilt back=move back** ✅
+- **Next**: PID tuning (kp → kd → ki manual adjustment)
 
 ### 📚 PID Control Guide
 
