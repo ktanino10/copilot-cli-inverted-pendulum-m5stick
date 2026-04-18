@@ -47,7 +47,7 @@ int motor_offsetR = 0;
 //  PID パラメータ（チューニング用：初期値0、ボタンで調整）
 // ============================================================
 float kpower = 0.003;   // 全体スケール（固定）
-float kp     = 6.0;     // P項: n_shinichi氏の値に近い初期値
+float kp     = 20.0;    // P項: 大きめにして応答を確認
 float ki     = 0.0;     // I項
 float kd     = 0.0;     // D項
 float kspd   = 0.0;     // 速度補正
@@ -180,19 +180,9 @@ void PID_reset() {
 }
 
 void PID_ctrl() {
-  Speed += kpower * power;
-  P_Angle = kp * Angle;
-  I_Angle += ki * Angle + kdst * Speed;
-  D_Angle = kd * dAngle;
-  k_speed = kspd * Speed;
-
-  power = P_Angle + I_Angle + D_Angle + k_speed;
-
-  // Anti-windup
-  if (I_Angle > I_LIMIT || I_Angle < -I_LIMIT) {
-    power = Speed = I_Angle = 0;
-    return;
-  }
+  // シンプルP制御のみ（まず方向確認用）
+  power = (int16_t)(kp * Angle);
+  power = constrain(power, -500, 500);
 
   if (motor_sw == 1) {
     powerL =  power + motor_offsetL + MOTOR_NEUTRAL;
@@ -348,9 +338,9 @@ void loop() {
   if (millis() > ms100) {
     updateDisplay();
     
-    // シリアルCSVログ（デバッグ用：全変数出力）
-    Serial.printf("DBG,Pitch=%.1f,PF=%.1f,PO=%.1f,Angle=%.1f,pL=%d,pR=%d,sw=%d\n",
-      Pitch, Pitch_filter, Pitch_offset, Angle, powerL, powerR, motor_sw);
+    // シリアルCSVログ
+    Serial.printf("DBG,A=%.1f,pw=%d,pL=%d,pR=%d,sw=%d\n",
+      Angle, power, powerL, powerR, motor_sw);
     
     // BtnA短押し: モーターON/OFF、長押し: パラメータ切替
     static unsigned long btnA_down = 0;
