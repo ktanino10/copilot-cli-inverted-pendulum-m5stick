@@ -106,11 +106,12 @@ void pulse_drive(int16_t pL, int16_t pR) {
   }
 }
 
-// サーボ停止
+// サーボ停止（パルスを出さない = 完全停止）
 void servo_stop() {
-  powerL = MOTOR_NEUTRAL + motor_offsetL;
-  powerR = MOTOR_NEUTRAL + motor_offsetR;
-  pulse_drive(powerL, powerR);
+  digitalWrite(MOTOR_PIN_L, LOW);
+  digitalWrite(MOTOR_PIN_R, LOW);
+  powerL = MOTOR_NEUTRAL;
+  powerR = MOTOR_NEUTRAL;
 }
 
 // ============================================================
@@ -288,16 +289,10 @@ void loop() {
     ms10 += 10;
   }
 
-  // 100ms 表示更新
+  // 100ms 表示更新 + ボタン
   if (millis() > ms100) {
     updateDisplay();
-    ms100 += 100;
-  }
-
-  // 1秒 ボタン・バッテリー
-  if (millis() > ms1000) {
-    batt = M5.Power.getBatteryVoltage() / 1000.0;
-
+    
     // BtnA: モーターON/OFFトグル
     if (digitalRead(BTN_A) == 0) {
       motor_sw = !motor_sw;
@@ -306,8 +301,15 @@ void loop() {
         servo_stop();
       }
       Serial.printf("Motor: %s\n", motor_sw ? "ON" : "OFF");
+      delay(300);  // デバウンス
     }
+    
+    ms100 += 100;
+  }
 
+  // 1秒 バッテリー
+  if (millis() > ms1000) {
+    batt = M5.Power.getBatteryVoltage() / 1000.0;
     ms1000 += 1000;
   }
 }
