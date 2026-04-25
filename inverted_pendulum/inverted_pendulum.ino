@@ -93,9 +93,9 @@ void applyCalibration() {
   }
 }
 
-// atan2: 直立=0°, 前傾=+, 後傾=- (境界は±180°=横倒し)
+// atan2: 直立=0°, 旧版と同じ符号 (境界は±180°=横倒し)
 float getPitch() {
-  return atan2(acc[1], acc[2]) * RAD_TO_DEG;
+  return atan2(-acc[1], acc[2]) * RAD_TO_DEG;
 }
 
 // ============================================================

@@ -33,18 +33,29 @@ copilot-cli-inverted-pendulum-m5stick/
 │
 ├── servo_test/
 │   └── servo_test.ino                 ← 🔧 サーボ動作確認用テストスケッチ
-│                                         ハードウェア到着後、最初に書き込んで動作確認する
 │
 ├── servo_diag/
 │   └── servo_diag.ino                 ← 🔍 GPIO全ピン自動スキャン診断スケッチ
-│                                         サーボが動かないときのトラブルシュート用
+│
+├── servo_calibrate/
+│   └── servo_calibrate.ino            ← 🔧 サーボキャリブレーションツール
+│
+├── motor_dir_test/
+│   └── motor_dir_test.ino             ← 🔧 モーター方向テスト / IMU軸ビューアー
+│
+├── octocat_display/
+│   └── octocat_display.ino            ← 🐙 GitHub ステッカースライドショー（息抜き）
+│
+├── tools/
+│   ├── monitor.py                     ← 📊 リアルタイムPIDモニター（シリアル）
+│   ├── auto_tune.py                   ← 🔬 自動PIDパラメータスイープ
+│   ├── collect_data.py                ← 📝 シリアルデータ収集
+│   ├── visualize_root.py              ← 📈 CERN ROOT / matplotlib可視化
+│   └── data/                          ← 📂 収集データ・ヒートマップ画像
 │
 └── docs/
     ├── pid_guide.md                   ← 🎓 PID制御 初心者ガイド
-    │                                     ほうきバランスの例え話から直感的に理解する
-    │
     └── pid_theory.md                  ← 📐 PID制御 理論編（上級者向け）
-                                          ラグランジアン・状態空間・カルマンフィルタの数式
 ```
 
 #### 読む順番のおすすめ
@@ -64,14 +75,17 @@ Arduino や電子工作は多少経験がありますが、制御工学は初め
 ### Copilot CLI でやったこと
 
 - 倒立制御メインファームウェア (`inverted_pendulum.ino`) の設計・実装
-- サーボ動作テスト・ピン自動スキャン診断スケッチの作成
+- サーボ動作テスト・ピン自動スキャン・キャリブレーションスケッチの作成
+- 自動PIDパラメータスイープツール + ヒートマップ可視化
+- リアルタイムシリアルモニター・データ収集ツールの作成
 - `arduino-cli` によるコンパイル・書き込みの実行
-- サーボが動かない問題のデバッグ（配線診断、GPIO テスト）
-- プロジェクトドキュメントの作成・更新
+- IMU軸方向、atan2境界問題、モーター方向のデバッグ
+- n_shinichi氏のリファレンス実装との体系的コード比較
+- バイリンガル（日英）プロジェクトドキュメントの作成・更新
 
 ### ハードウェア
 
-- **マイコン**: M5StickC Plus (ESP32, IMU: MPU6886)
+- **マイコン**: M5StickC Plus2 (ESP32-PICO-V3-02, IMU: MPU6886, 電源IC: AXP2101)
 - **サーボモータ**: FS90R (連続回転サーボ) × 2
 - **タイヤ**: FS90R対応 × 2
 - **ボディ**: Interface誌専用キット
@@ -92,26 +106,30 @@ Arduino や電子工作は多少経験がありますが、制御工学は初め
 
 ### 必要なライブラリ (Arduino IDE)
 
-- [KalmanFilter](https://github.com/TKJElectronics/KalmanFilter)
-- [RemoteXY](https://remotexy.com/en/help/)
-- [M5StickCPlus](https://github.com/m5stack/M5StickC-Plus)
-- ボードマネージャ: M5Stack
+- [KalmanFilter](https://github.com/TKJElectronics/KalmanFilter) — センサフュージョン
+- [M5StickCPlus2](https://github.com/m5stack/M5StickCPlus2) — Plus2用ライブラリ
+- ボードマネージャ: M5Stack (ESP32)
 
 ### 使い方
 
-1. Arduino IDEでファームウェアを書き込む
-2. M5StickCを水平に持ち、電源を入れ直す（キャリブレーション）
-3. 「M5」ボタンを長押し → 倒立制御スタート
+1. `arduino-cli` またはArduino IDEでファームウェアを書き込む
+2. M5StickC Plus2 を**直立状態**で電源投入（ジャイロキャリブレーション）
+3. Aボタン押下 → 倒立制御スタート/ストップ
+4. シリアルコマンド（115200bps）でリアルタイム調整可能:
+   - `kp=6.3` `kd=0.48` `ki=1.4` — PIDパラメータ変更
+   - `po=0.0` — Pitch_offset変更
+   - `on` / `off` — モーター制御
+   - `?` — 現在値表示
 
 ### PIDデフォルト値
 
 ```cpp
-float kpower = 0.001;
-float kp = 21.0;
-float ki = 7.0;
-float kd = 1.6;
-float kdst = 0.07;
-float kspd = 2.5;
+float kpower = 0.003;
+float kp = 6.3;
+float ki = 1.4;
+float kd = 0.48;
+float kspd = 5.0;
+float kdst = 0.14;
 ```
 
 ### 進捗ログ
@@ -228,6 +246,81 @@ IMU角度: getPitch() = asin(-acc[2])
 - 前後応答テスト → **前に傾けたら前、後ろに傾けたら後ろに移動** ✅
 - **次のステップ**: PIDチューニング（kp → kd → ki の順に手動調整）
 
+#### 2026-04-18: 42パターン自動PIDスイープ + ヒートマップ可視化
+
+- `tools/auto_tune.py` で kp × kd のグリッドサーチ（42組み合わせ）を自動実行
+- 各パラメータ組で10秒間バランスを試み、安定時間と平均角度を記録
+- 結果を `tools/data/autotune_heatmap.png` にヒートマップ可視化
+- **発見**: USB ケーブルのテンション（張力）がバランスを大幅に補助していた
+  - USB 接続時: 5秒以上安定
+  - USB 切断時: 即座に転倒
+- 単純なPIDゲイン調整だけでは不十分、ファームウェア構造自体の見直しが必要と判断
+
+#### 2026-04-25: n_shinichi氏コード完全準拠 — クリーンリライト + IMU軸修正 🔧
+
+n_shinichi氏のオリジナルコードと自分のコードを徹底比較し、**10個の差異**を特定。クリーンリライトを実施。
+
+##### 発見された重大な問題
+
+| # | 問題 | 原因 | 対策 |
+|---|------|------|------|
+| 14 | **カルマンフィルタのジャイロ軸が間違っていた** | `gyro[2]`（Z軸）を使用していたが、Plus2では**X軸 (`gyro[0]`)が前後回転軸**だった。ジャイロ軸ビューアーで確認 | `gyro[0]` に変更。**最も影響の大きかった修正** |
+| 15 | **getPitch() の atan2 境界問題** | `atan2(-acc[2], -acc[1])` では直立位置が -90°（atan2 の ±90° 境界付近）にあり、前後どちらに傾けても同符号の角度が返る | `atan2(-acc[1], acc[2])` に変更。直立 = 0° で ±90° 境界から遠い安定領域に移動 |
+| 16 | **Pitch_offset が動的だった** | ON にした瞬間の Pitch_filter を保存する方式。タイミングで値が変わり不安定 | n_shinichi氏に準拠し固定値に変更 |
+| 17 | **ANGLE_LIMIT の判定が間違った変数** | Pitch_filter（オフセット込み）をチェックしていて、Angle（オフセット差引後）をチェックしていなかった | `Angle` で判定するように修正 |
+
+##### atan2 境界問題の詳細（重要な教訓）
+
+Plus2 のIMUでは直立時の加速度値が `acc[1]≈0, acc[2]≈1` で、以下のように atan2 の引数によって結果が大きく異なる：
+
+```
+            直立時の値     前傾5°    後傾5°     問題
+atan2(-acc[2], -acc[1])  -89.8°    -95.7°    -84.3°    ← 直立が±90°境界！大傾斜で符号反転
+atan2(acc[1], acc[2])      0.0°     +5.7°     -5.7°    ← 符号は正しいがジャイロと逆向き
+atan2(-acc[1], acc[2])     0.0°     -5.7°     +5.7°    ← ✅ 直立=0°, 符号・ジャイロ一致
+```
+
+**結論**: IMU軸の向きに合わせて、**直立位置が atan2 の 0° 付近**になる引数の組み合わせを選ぶこと。±90° 境界付近に直立があると、大きな傾斜で符号が反転して制御不能になる。
+
+##### 小角度での制御成功データ（シリアルログ）
+
+以下はUSB接続状態でのシリアルログ。**±2° 以内のマイクロバランス**が動作していることを確認：
+
+```
+Angle= +0.5  power=  -1    ← ほぼ直立、微調整
+Angle= +1.4  power= -12
+Angle= +0.8  power=  -3
+Angle= +0.5  power= +12
+Angle= +0.9  power= +10
+Angle= +0.4  power= +19
+Angle= +0.2  power=  +7
+Angle= -0.2  power= +15    ← 後傾→前進で補正
+Angle= +1.2  power= -42
+Angle= +1.2  power= -16
+Angle= +0.1  power=  -4
+```
+
+##### 現在の確定パラメータ
+
+```
+モーターピン: G0 (左), G26 (右)
+モーター方向: powerL = +power, powerR = -power
+角度算出: getPitch() = atan2(-acc[1], acc[2])  ← 直立=0°
+カルマンフィルタ: gyro[0]（X軸）
+dAngle: gyro[0] - gyroOffset[0]
+PID符号: P=-kp*A, I+=-ki*A, D=-kd*dA（旧コードとの互換のため反転）
+ANGLE_LIMIT: ±20°（atan2境界を回避）
+PID: kp=6.3, ki=1.4, kd=0.48, kspd=5.0, kdst=0.14
+Pitch_offset: 0.0（atan2版では直立≈0°）
+```
+
+##### 残タスク
+
+- [ ] atan2(-acc[1], acc[2]) + ジャイロ符号の最終検証
+- [ ] USB切断状態でのバランステスト
+- [ ] PID微調整（auto_tune.py + ヒートマップ）
+- [ ] CERN ROOT による時系列データ可視化
+
 ### 📚 PID制御ガイド
 
 PID制御の基礎を初心者向けに解説したガイドを用意しました。ほうきバランスの例え話から、倒立振子への応用、パラメータ調整の手順まで、Interface誌の内容をベースにわかりやすくまとめています。
@@ -266,22 +359,32 @@ copilot-cli-inverted-pendulum-m5stick/
 │
 ├── inverted_pendulum/
 │   └── inverted_pendulum.ino          ← 🎯 Main firmware (PID control + Kalman filter)
-│                                         The core code that makes the robot balance
 │
 ├── servo_test/
 │   └── servo_test.ino                 ← 🔧 Servo test sketch
-│                                         Flash this first to verify hardware works
 │
 ├── servo_diag/
 │   └── servo_diag.ino                 ← 🔍 GPIO auto-scan diagnostic sketch
-│                                         Troubleshooting tool when servos won't spin
+│
+├── servo_calibrate/
+│   └── servo_calibrate.ino            ← 🔧 Servo calibration tool
+│
+├── motor_dir_test/
+│   └── motor_dir_test.ino             ← 🔧 Motor direction test / IMU axis viewer
+│
+├── octocat_display/
+│   └── octocat_display.ino            ← 🐙 GitHub sticker slideshow (fun break)
+│
+├── tools/
+│   ├── monitor.py                     ← 📊 Real-time PID monitor (serial)
+│   ├── auto_tune.py                   ← 🔬 Automatic PID parameter sweep
+│   ├── collect_data.py                ← 📝 Serial data collection
+│   ├── visualize_root.py              ← 📈 CERN ROOT / matplotlib visualization
+│   └── data/                          ← 📂 Collected data & heatmap images
 │
 └── docs/
     ├── pid_guide.md                   ← 🎓 PID Control — Beginner's Guide
-    │                                     Intuitive explanations with analogies
-    │
     └── pid_theory.md                  ← 📐 PID Control — Theory (Advanced)
-                                          Lagrangian, state-space, Kalman filter math
 ```
 
 #### Suggested Reading Order
@@ -299,14 +402,17 @@ Inspired by a feature article on inverted pendulums in [Interface Magazine (Sep 
 ### What Copilot CLI Did
 
 - Designed and implemented the main balance control firmware (`inverted_pendulum.ino`)
-- Created servo test and pin auto-scan diagnostic sketches
+- Created servo test, pin auto-scan diagnostic, and calibration sketches
+- Built automatic PID parameter sweep tool with heatmap visualization
+- Created real-time serial monitoring and data collection tools
 - Compiled and flashed firmware via `arduino-cli`
-- Debugged servo issues (wiring diagnosis, GPIO testing)
-- Created and maintained project documentation
+- Debugged IMU axis orientation, atan2 boundary issues, and motor direction
+- Performed systematic code comparison with n_shinichi's reference implementation
+- Created and maintained bilingual project documentation
 
 ### Hardware
 
-- **MCU**: M5StickC Plus (ESP32, IMU: MPU6886)
+- **MCU**: M5StickC Plus2 (ESP32-PICO-V3-02, IMU: MPU6886, Power IC: AXP2101)
 - **Servos**: FS90R (continuous rotation) × 2
 - **Wheels**: FS90R compatible × 2
 - **Body**: Interface Magazine kit
@@ -327,16 +433,20 @@ Inspired by a feature article on inverted pendulums in [Interface Magazine (Sep 
 
 ### Required Libraries (Arduino IDE)
 
-- [KalmanFilter](https://github.com/TKJElectronics/KalmanFilter)
-- [RemoteXY](https://remotexy.com/en/help/)
-- [M5StickCPlus](https://github.com/m5stack/M5StickC-Plus)
-- Board Manager: M5Stack
+- [KalmanFilter](https://github.com/TKJElectronics/KalmanFilter) — Sensor fusion
+- [M5StickCPlus2](https://github.com/m5stack/M5StickCPlus2) — Plus2 library
+- Board Manager: M5Stack (ESP32)
 
 ### Usage
 
-1. Flash the firmware using Arduino IDE
-2. Hold M5StickC horizontally and power on (gyro calibration)
-3. Long-press the M5 button → balance control starts
+1. Flash firmware using `arduino-cli` or Arduino IDE
+2. Power on M5StickC Plus2 in **upright position** (gyro calibration)
+3. Press A button → start/stop balance control
+4. Real-time tuning via serial commands (115200bps):
+   - `kp=6.3` `kd=0.48` `ki=1.4` — change PID parameters
+   - `po=0.0` — change Pitch_offset
+   - `on` / `off` — motor control
+   - `?` — show current values
 
 ### Progress Log
 
@@ -451,6 +561,81 @@ Power: BAT pin for servo supply
 
 - Forward/backward response test → **tilt forward=move forward, tilt back=move back** ✅
 - **Next**: PID tuning (kp → kd → ki manual adjustment)
+
+#### 2026-04-18: 42-pattern automatic PID sweep + heatmap visualization
+
+- Ran kp × kd grid search (42 combinations) using `tools/auto_tune.py`
+- Each parameter set tested for 10 seconds, recording stability time and mean angle
+- Results visualized as heatmap in `tools/data/autotune_heatmap.png`
+- **Discovery**: USB cable tension was significantly assisting balance
+  - USB connected: stable 5+ seconds
+  - USB disconnected: immediate fall
+- Concluded simple PID gain tuning insufficient — firmware architecture review needed
+
+#### 2026-04-25: Full alignment to n_shinichi's code — Clean rewrite + IMU axis fix 🔧
+
+Performed thorough diff analysis between n_shinichi's original code and ours, identifying **10 differences**. Executed a clean rewrite.
+
+##### Critical issues discovered
+
+| # | Problem | Root Cause | Fix |
+|---|---------|-----------|-----|
+| 14 | **Wrong gyro axis for Kalman filter** | Using `gyro[2]` (Z-axis) but on Plus2, **X-axis (`gyro[0]`) is the forward/backward rotation axis**. Confirmed with gyro axis viewer | Changed to `gyro[0]`. **Most impactful fix** |
+| 15 | **atan2 boundary problem in getPitch()** | `atan2(-acc[2], -acc[1])` placed upright at -90° (near atan2's ±90° boundary). Both forward and backward tilt returned the same sign | Changed to `atan2(-acc[1], acc[2])`. Upright = 0°, far from ±90° boundary |
+| 16 | **Dynamic Pitch_offset** | Captured Pitch_filter at the moment of turning ON — inconsistent timing | Changed to fixed value following n_shinichi |
+| 17 | **ANGLE_LIMIT checking wrong variable** | Checking Pitch_filter (with offset) instead of Angle (offset-subtracted) | Fixed to check `Angle` |
+
+##### atan2 boundary problem in detail (key lesson)
+
+On Plus2's IMU, upright accelerometer values are `acc[1]≈0, acc[2]≈1`. The choice of atan2 arguments dramatically affects behavior:
+
+```
+                          Upright   Fwd 5°    Back 5°   Issue
+atan2(-acc[2], -acc[1])   -89.8°   -95.7°    -84.3°    ← Upright at ±90° boundary! Sign reversal at large tilts
+atan2(acc[1], acc[2])       0.0°    +5.7°     -5.7°    ← Correct signs but opposite to gyro direction
+atan2(-acc[1], acc[2])      0.0°    -5.7°     +5.7°    ← ✅ Upright=0°, signs match gyro
+```
+
+**Lesson**: Choose atan2 arguments so that **upright is near 0°** in atan2 space. If upright is near ±90°, large tilts cause sign reversal and loss of control.
+
+##### Small-angle control success data (serial log)
+
+Serial log with USB connected. Confirmed **micro-balance within ±2°** is working:
+
+```
+Angle= +0.5  power=  -1    ← Near-upright, micro-adjustment
+Angle= +1.4  power= -12
+Angle= +0.8  power=  -3
+Angle= +0.5  power= +12
+Angle= +0.9  power= +10
+Angle= +0.4  power= +19
+Angle= +0.2  power=  +7
+Angle= -0.2  power= +15    ← Backward tilt → forward correction
+Angle= +1.2  power= -42
+Angle= +1.2  power= -16
+Angle= +0.1  power=  -4
+```
+
+##### Current confirmed parameters
+
+```
+Motor pins: G0 (left), G26 (right)
+Motor direction: powerL = +power, powerR = -power
+Angle calc: getPitch() = atan2(-acc[1], acc[2])  ← upright=0°
+Kalman filter: gyro[0] (X-axis)
+dAngle: gyro[0] - gyroOffset[0]
+PID signs: P=-kp*A, I+=-ki*A, D=-kd*dA (inverted for legacy compat)
+ANGLE_LIMIT: ±20° (avoids atan2 boundary)
+PID: kp=6.3, ki=1.4, kd=0.48, kspd=5.0, kdst=0.14
+Pitch_offset: 0.0 (upright ≈ 0° with atan2 version)
+```
+
+##### Remaining tasks
+
+- [ ] Final verification of atan2(-acc[1], acc[2]) + gyro sign
+- [ ] Balance test without USB cable
+- [ ] PID fine-tuning (auto_tune.py + heatmap)
+- [ ] Time-series data visualization with CERN ROOT
 
 ### 📚 PID Control Guide
 
