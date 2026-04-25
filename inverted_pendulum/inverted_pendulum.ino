@@ -280,23 +280,33 @@ void loop() {
     ms10 += 10;
   }
 
-  // 100ms 表示 + データログ
+  // 100ms 表示 + ボタン + データログ
   if (millis() > ms100) {
     updateDisplay();
     if (motor_sw == 1) {
       Serial.printf("D,%.1f,%d,%d,%d\n", Angle, power, powerL, powerR);
     }
-    ms100 += 100;
-  }
-
-  // 1秒 ボタン + バッテリー
-  if (millis() > ms1000) {
-    batt = M5.Power.getBatteryVoltage() / 1000.0;
-    if (digitalRead(BTN_A) == 0) motor_sw = !motor_sw;
+    
+    // BtnA: ON/OFF
+    if (digitalRead(BTN_A) == 0) {
+      motor_sw = !motor_sw;
+      if (motor_sw == 0) { PID_reset(); servo_stop(); }
+      Serial.printf("Motor: %s\n", motor_sw ? "ON" : "OFF");
+      delay(300);
+    }
+    // BtnB: po2 +0.5
     if (digitalRead(BTN_B) == 0) {
       Pitch_offset2 += 0.5;
       Serial.printf("po2=%.1f\n", Pitch_offset2);
+      delay(300);
     }
+    
+    ms100 += 100;
+  }
+
+  // 1秒 バッテリー
+  if (millis() > ms1000) {
+    batt = M5.Power.getBatteryVoltage() / 1000.0;
     ms1000 += 1000;
   }
 }
