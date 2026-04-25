@@ -35,7 +35,7 @@ float kdst = 0.14;
 
 // Pitch_offset: atan2 + この値で直立=0°
 // n_shinichi氏は81を使用。Plus2での実測値に要調整。
-float Pitch_offset = 2.5;  // 直立時の実測値から算出
+float Pitch_offset = 0.1;  // 直立時PF=0.1を実測（USB直立で確認）
 float Pitch_offset2 = 0.0;
 float Pitch_power = 0.0;
 int fil_N = 5;
@@ -93,7 +93,7 @@ void applyCalibration() {
   }
 }
 
-// n_shinichi氏と同じ: atan2(acc[1], acc[2])
+// atan2で全範囲(-180〜180)をカバー
 float getPitch() {
   return atan2(acc[1], acc[2]) * RAD_TO_DEG;
 }
@@ -107,9 +107,9 @@ void get_Angle() {
   float kalman_dt = (micros() - lastMs) / 1000000.0;
   lastMs = micros();
   // カルマンフィルタ: ジャイロX軸（n_shinichi氏と同じ）
-  Pitch = kalman.getAngle(getPitch(), gyro[0], kalman_dt) + Pitch_offset + Pitch_offset2 + Pitch_power;
+  Pitch = kalman.getAngle(getPitch(), gyro[0], kalman_dt) + Pitch_offset2 + Pitch_power;
   Pitch_filter = (Pitch + Pitch_filter * (fil_N - 1)) / fil_N;
-  Angle = Pitch_filter;
+  Angle = Pitch_filter - Pitch_offset;
 }
 
 // ============================================================
@@ -130,9 +130,10 @@ void pulse_drive(int16_t pL, int16_t pR) {
 }
 
 void servo_stop() {
-  powerL = motor_init_L + motor_offsetL;
-  powerR = motor_init_R + motor_offsetR;
-  pulse_drive(powerL, powerR);
+  digitalWrite(MOTOR_PIN_L, LOW);
+  digitalWrite(MOTOR_PIN_R, LOW);
+  powerL = motor_init_L;
+  powerR = motor_init_R;
 }
 
 // ============================================================
@@ -155,8 +156,6 @@ void PID_ctrl() {
   if (I_Angle < -300) { power = Speed = I_Angle = Pitch_power = 0; }
 
   if (motor_sw == 1) {
-    // モーター方向: 実機テストで +power/-power が前進と確認済み
-    // n_shinichi氏は -power/+power だが、取り付け向きが異なるため
     powerL =  power + motor_offsetL + motor_init_L;
     powerR = -power + motor_offsetR + motor_init_R;
     pulse_drive(powerL, powerR);
@@ -269,13 +268,14 @@ void loop() {
 
   // 10ms制御ループ（n_shinichi氏と同じ）
   if (millis() > ms10) {
-    if (-30 < Pitch_filter && Pitch_filter < 30) {
+    if (-30 < Angle && Angle < 30) {
       wait_count++;
-      if (wait_count > 200) {
+      if (wait_count > 0) {
         PID_ctrl();
       }
     } else {
       PID_reset();
+      servo_stop();
     }
     ms10 += 10;
   }
