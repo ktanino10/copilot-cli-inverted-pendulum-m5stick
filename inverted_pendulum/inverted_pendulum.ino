@@ -35,7 +35,7 @@ float kdst = 0.14;
 
 // Pitch_offset: atan2 + この値で直立=0°
 // n_shinichi氏は81を使用。Plus2での実測値に要調整。
-float Pitch_offset = 82.4;
+float Pitch_offset = 2.5;  // 直立時の実測値から算出
 float Pitch_offset2 = 0.0;
 float Pitch_power = 0.0;
 int fil_N = 5;
