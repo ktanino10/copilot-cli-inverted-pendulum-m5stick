@@ -1,8 +1,7 @@
 /*
- * IMU軸確認ツール
- * 生の加速度を画面にリアルタイム表示
- * 直立→前に傾ける→後ろに傾ける で
- * どの軸が + → - に変化するか確認
+ * IMU ジャイロ軸確認ツール
+ * 加速度とジャイロを全軸リアルタイム表示
+ * 直立→前後に傾けて、どのジャイロ軸が変化するか確認
  */
 #include <M5StickCPlus2.h>
 
@@ -16,31 +15,42 @@ void setup() {
 
 void loop() {
   float gx, gy, gz, ax, ay, az;
+  M5.Imu.getGyro(&gx, &gy, &gz);
   M5.Imu.getAccel(&ax, &ay, &az);
   
   StickCP2.Display.fillScreen(BLACK);
   StickCP2.Display.setTextSize(2);
   StickCP2.Display.setTextColor(YELLOW);
-  StickCP2.Display.setCursor(5, 5);
-  StickCP2.Display.println("IMU Axis Check");
+  StickCP2.Display.setCursor(5, 0);
+  StickCP2.Display.println("Gyro Axis Check");
   
-  StickCP2.Display.setTextSize(3);
-  StickCP2.Display.setTextColor(ax > 0.1 ? GREEN : (ax < -0.1 ? RED : WHITE));
-  StickCP2.Display.setCursor(5, 30);
-  StickCP2.Display.printf("X:%+.2f", ax);
+  // 加速度
+  StickCP2.Display.setTextSize(1);
+  StickCP2.Display.setTextColor(WHITE);
+  StickCP2.Display.setCursor(5, 22);
+  StickCP2.Display.printf("Acc  X:%+5.2f Y:%+5.2f Z:%+5.2f", ax, ay, az);
   
-  StickCP2.Display.setTextColor(ay > 0.1 ? GREEN : (ay < -0.1 ? RED : WHITE));
-  StickCP2.Display.setCursor(5, 60);
-  StickCP2.Display.printf("Y:%+.2f", ay);
+  // ジャイロ（大きく表示）
+  StickCP2.Display.setTextSize(2);
   
-  StickCP2.Display.setTextColor(az > 0.1 ? GREEN : (az < -0.1 ? RED : WHITE));
-  StickCP2.Display.setCursor(5, 90);
-  StickCP2.Display.printf("Z:%+.2f", az);
+  StickCP2.Display.setTextColor(abs(gx) > 10 ? GREEN : WHITE);
+  StickCP2.Display.setCursor(5, 38);
+  StickCP2.Display.printf("gX:%+6.0f", gx);
+  
+  StickCP2.Display.setTextColor(abs(gy) > 10 ? GREEN : WHITE);
+  StickCP2.Display.setCursor(5, 58);
+  StickCP2.Display.printf("gY:%+6.0f", gy);
+  
+  StickCP2.Display.setTextColor(abs(gz) > 10 ? GREEN : WHITE);
+  StickCP2.Display.setCursor(5, 78);
+  StickCP2.Display.printf("gZ:%+6.0f", gz);
   
   StickCP2.Display.setTextSize(1);
   StickCP2.Display.setTextColor(CYAN);
-  StickCP2.Display.setCursor(5, 120);
-  StickCP2.Display.print("Tilt FWD/BWD - which changes?");
+  StickCP2.Display.setCursor(5, 105);
+  StickCP2.Display.print("Tilt FWD/BWD - which gyro?");
+  StickCP2.Display.setCursor(5, 118);
+  StickCP2.Display.print("Rotate L/R - which gyro?");
   
-  delay(100);
+  delay(50);
 }
