@@ -35,7 +35,7 @@ float kdst = 0.14;
 
 // Pitch_offset: atan2 + この値で直立=0°
 // n_shinichi氏は81を使用。Plus2での実測値に要調整。
-float Pitch_offset = 0.0;  // Z軸直接なので直立=0
+float Pitch_offset = 0.0;  // atan2(acc[1],acc[2])版: 直立≈0°
 float Pitch_offset2 = 0.0;
 float Pitch_power = 0.0;
 int fil_N = 5;
@@ -93,11 +93,9 @@ void applyCalibration() {
   }
 }
 
-// Z軸の加速度を角度に変換（直立付近で線形、±30°で十分）
-// acc[2]: 前傾=負、後傾=正（実機テスト済み）
+// atan2: 直立=0°, 前傾=+, 後傾=- (境界は±180°=横倒し)
 float getPitch() {
-  // acc[2] を度に変換（1g = 90°として線形近似）
-  return acc[2] * 90.0;
+  return atan2(acc[1], acc[2]) * RAD_TO_DEG;
 }
 
 // ============================================================
@@ -270,7 +268,7 @@ void loop() {
 
   // 10ms制御ループ（n_shinichi氏と同じ）
   if (millis() > ms10) {
-    if (-60 < Angle && Angle < 60) {
+    if (-20 < Angle && Angle < 20) {
       wait_count++;
       if (wait_count > 0) {
         PID_ctrl();
