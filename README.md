@@ -321,6 +321,96 @@ Pitch_offset: 0.0（atan2版では直立≈0°）
 - [ ] PID微調整（auto_tune.py + ヒートマップ）
 - [ ] CERN ROOT による時系列データ可視化
 
+#### 2026-05-01: 前後符号の再検証と「後ろへ逃げる」問題のログ化
+
+4/30深夜〜5/1にかけて、前後の角度符号・PID・モーター出力を実機ログで再検証した。最終的に、**acc[2] の偏差を使う線形角度**で前後の符号が分かれることを確認した。
+
+##### 今日わかったこと
+
+| 項目 | 結論 |
+|------|------|
+| 角度軸 | `acc[2]` の変化が前後の分離に効く。`acc[1]` は前後どちらでも同方向に動く場面があり、単独では不安定 |
+| 角度式 | 現在は `getPitch() = (acc[2] - 1.0) * 57.3`。物理角度そのものではないが、制御用の符号・偏差として利用 |
+| ゼロ基準 | `on` / AボタンON時に `Pitch_offset = Pitch_filter` として、今の姿勢を自動で `Angle=0` にする |
+| 詳細ログ | `X,...` 行を追加し、`Angle,dAngle,P,I,D,Speed,power,L/R,acc,gyro` をCSV保存できるようにした |
+| I項・速度項 | `ki=0` でも `kspd/kpower` を入れると激しく振動しやすい。現時点ではOFF |
+| 最低出力 | `minp=80` はFS90R不感帯対策として試したが、段差的に効いて振動源になりやすい。現時点ではOFF |
+| 前後非対称 | 後ろへ逃げやすいため、`pneg`（後退補正）を前進側より強くする方向は効果あり |
+
+##### 保存した転倒ログ
+
+以下のCSVは、次回の解析用に保存した。
+
+```
+tools/data/failure_log_latest.csv        # ki=0 でも kdst/kspd が残って走り込みを増幅したログ
+tools/data/failure_log_oscillation.csv   # D項・出力飽和が強く、小刻み振動→ANGLE_LIMIT超過したログ
+tools/data/failure_log_backward_run.csv  # 後ろへ逃げるが、飽和は少なく補正不足寄りだったログ
+```
+
+##### CERN ROOT / matplotlib 可視化
+
+`tools/visualize_root.py` を詳細ログ形式に対応させ、各ログから `.root` と `.png` を生成した。PyROOT は macOS 環境で標準ライブラリ警告が出ることがあるため、同じ情報を matplotlib PNG としても必ず保存する。
+
+```
+python3 tools/visualize_root.py tools/data/failure_log_*.csv
+```
+
+生成物：
+
+| ログ | PNG | ROOT |
+|------|-----|------|
+| 後ろへ逃げるログ | [`failure_log_backward_run.png`](tools/data/failure_log_backward_run.png) | [`failure_log_backward_run.root`](tools/data/failure_log_backward_run.root) |
+| kspd/kdstが残って走り込むログ | [`failure_log_latest.png`](tools/data/failure_log_latest.png) | [`failure_log_latest.root`](tools/data/failure_log_latest.root) |
+| 小刻み振動・飽和ログ | [`failure_log_oscillation.png`](tools/data/failure_log_oscillation.png) | [`failure_log_oscillation.root`](tools/data/failure_log_oscillation.root) |
+
+可視化パネルには以下を含める：
+
+- Angle vs Time（±45°のANGLE_LIMIT線つき）
+- Motor Output vs Time（`power`, `L-1500`, `R-1500`）
+- PID Terms（P/I/D）
+- Phase plot（Angle vs dAngle）
+- IMU Signals（accZ / gyroX）
+- Angle vs Power
+
+例：後ろへ逃げるログでは、Angle が小さい範囲（数度）に留まる一方で、power が -30〜-80 程度に偏り続けており、**符号逆や飽和ではなく、後退方向の補正不足または低速域のサーボ効き不足**として読める。振動ログでは `power` が ±500 付近まで飽和し、Angle が ±45°を超えて制御停止する様子が見える。
+
+##### 現在のファームウェア設定（次回の出発点）
+
+```
+getPitch(): (acc[2] - 1.0) * 57.3
+ON時: Pitch_offset = Pitch_filter（自動ゼロ合わせ）
+ANGLE_LIMIT: ±45°
+
+kp=10.0
+ki=0.0
+kd=0.35
+kpower=0.0
+kspd=0.0
+kdst=0.0
+
+power_limit=350
+power_pos_scale=0.85   # +power = 前進補正
+power_neg_scale=1.70   # -power = 後退補正
+min_drive_power=0      # 最低出力補正OFF
+targetBias=0.0
+```
+
+##### 実機での観察
+
+- 設定によっては **3〜4秒程度立つ** ところまで改善。
+- ただし安定点には入らず、少し振動しながら、ある傾きから前または後ろへ走りながら倒れる。
+- 後ろへ逃げる傾向が比較的多い。
+- `kspd=1.2` や `minp=80` など段差・速度系を入れると激しい振動が増えた。
+- `pneg=1.70` は立つ時間を伸ばしたが、完全には止まらない。
+
+##### 次回の候補
+
+1. `failure_log_backward_run.csv` を可視化し、後ろへ逃げる直前の `Angle/dAngle/P/D/power` の位相を確認する。
+2. `pneg` を大きくする前に、`power_neg_scale` ではなく **後退側だけの小さな `bias`** または **左右/前後のサーボオフセット**を試す。
+3. `gyro[0]` のD項ではなく、`Angle` の差分から作る `dAngle` 比較モードを追加し、D項の位相ズレを確認する。
+4. `fil_N=5` の遅れを疑い、`fil_N=3` をログ付きで比較する。
+5. 自動PIDスイープは、現在の「線形 `acc[2]` + 自動ゼロ合わせ + 前後非対称補正」を基準にやり直す。
+
 ### 📚 PID制御ガイド
 
 PID制御の基礎を初心者向けに解説したガイドを用意しました。ほうきバランスの例え話から、倒立振子への応用、パラメータ調整の手順まで、Interface誌の内容をベースにわかりやすくまとめています。

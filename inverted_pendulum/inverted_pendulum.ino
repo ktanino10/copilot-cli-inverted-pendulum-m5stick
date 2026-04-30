@@ -26,18 +26,24 @@
 // ============================================================
 int motor_offsetL = 0, motor_offsetR = 0;
 int16_t motor_init_L = 1500, motor_init_R = 1500;
-float kpower = 0.003;
-float kp = 6.3;
-float ki = 1.4;
-float kd = 0.48;
-float kspd = 5.0;
-float kdst = 0.14;
+float kpower = 0.0;
+float kp = 10.0;
+float ki = 0.0;
+float kd = 0.35;
+float kspd = 0.0;
+float kdst = 0.0;
+int16_t power_limit = 350;
+float power_pos_scale = 0.85;  // +power = 前進補正
+float power_neg_scale = 1.70;  // -power = 後退補正。後ろへ逃げるため強める
+int16_t min_drive_power = 0;   // 振動源になるため既定では無効
+float min_drive_angle = 3.0;   // 小刻み振動では最低出力を入れない
 
 // Pitch_offset: atan2 + この値で直立=0°
 // n_shinichi氏は81を使用。Plus2での実測値に要調整。
-float Pitch_offset = 0.0;  // atan2(acc[1],acc[2])版: 直立≈0°
+float Pitch_offset = 0.0;  // 起動後にシリアルで設定
 float Pitch_offset2 = 0.0;
 float Pitch_power = 0.0;
+float targetBias = 0.0;  // 正の値で目標姿勢を+側へずらす
 int fil_N = 5;
 
 // ============================================================
@@ -93,9 +99,9 @@ void applyCalibration() {
   }
 }
 
-// atan2: 直立=0°, 旧版と同じ符号 (境界は±180°=横倒し)
+// acc[2]の偏差を線形にスケーリング（前後均等な応答）
 float getPitch() {
-  return atan2(-acc[1], acc[2]) * RAD_TO_DEG;
+  return (acc[2] - 1.0) * 57.3;
 }
 
 // ============================================================
@@ -109,7 +115,7 @@ void get_Angle() {
   // カルマンフィルタ: ジャイロX軸（n_shinichi氏と同じ）
   Pitch = kalman.getAngle(getPitch(), gyro[0], kalman_dt) + Pitch_offset2 + Pitch_power;
   Pitch_filter = (Pitch + Pitch_filter * (fil_N - 1)) / fil_N;
-  Angle = Pitch_filter - Pitch_offset;
+  Angle = Pitch_filter - Pitch_offset - targetBias;
 }
 
 // ============================================================
@@ -140,7 +146,12 @@ void servo_stop() {
 //  PID制御 — n_shinichi氏と同じ構造（符号のみ変更）
 // ============================================================
 void PID_reset() {
-  Pitch_power = wait_count = power = Speed = I_Angle = 0;
+  Pitch_power = Speed = I_Angle = P_Angle = D_Angle = k_speed = 0;
+  wait_count = power = 0;
+}
+
+void setBalanceReference() {
+  Pitch_offset = Pitch_filter;
 }
 
 void PID_ctrl() {
@@ -150,7 +161,16 @@ void PID_ctrl() {
   D_Angle = -kd * dAngle;
   k_speed = -kspd * Speed;
 
-  power = P_Angle + I_Angle + D_Angle + k_speed;
+  float scaledPower = P_Angle + I_Angle + D_Angle + k_speed;
+  if (scaledPower > 0) {
+    scaledPower *= power_pos_scale;
+  } else {
+    scaledPower *= power_neg_scale;
+  }
+  if (fabs(Angle) > min_drive_angle && fabs(scaledPower) > 1 && fabs(scaledPower) < min_drive_power) {
+    scaledPower = scaledPower > 0 ? min_drive_power : -min_drive_power;
+  }
+  power = constrain((int16_t)scaledPower, -power_limit, power_limit);
 
   if (I_Angle > 300) { power = Speed = I_Angle = Pitch_power = 0; }
   if (I_Angle < -300) { power = Speed = I_Angle = Pitch_power = 0; }
@@ -174,25 +194,40 @@ void processSerial() {
   cmd.trim();
 
   if (cmd == "on") {
-    motor_sw = 1; PID_reset();
-    Serial.println("Motor ON");
+    PID_reset();
+    setBalanceReference();
+    motor_sw = 1;
+    Serial.printf("Motor ON zero po=%.2f bias=%.2f\n", Pitch_offset, targetBias);
   }
   else if (cmd == "off") {
     motor_sw = 0; PID_reset(); servo_stop();
     Serial.println("Motor OFF");
   }
+  else if (cmd == "zero") {
+    PID_reset();
+    setBalanceReference();
+    Serial.printf("zero po=%.2f bias=%.2f\n", Pitch_offset, targetBias);
+  }
   else if (cmd == "?") {
-    Serial.printf("kp=%.2f ki=%.2f kd=%.2f kspd=%.2f kdst=%.2f po=%.2f po2=%.2f\n",
-      kp, ki, kd, kspd, kdst, Pitch_offset, Pitch_offset2);
+    Serial.printf("kp=%.2f ki=%.2f kd=%.2f kspd=%.2f kdst=%.2f po=%.2f po2=%.2f bias=%.2f plim=%d ppos=%.2f pneg=%.2f minp=%d minang=%.1f\n",
+      kp, ki, kd, kspd, kdst, Pitch_offset, Pitch_offset2, targetBias, power_limit, power_pos_scale, power_neg_scale, min_drive_power, min_drive_angle);
     Serial.printf("Angle=%.1f Pitch=%.1f PF=%.1f\n", Angle, Pitch, Pitch_filter);
+    Serial.printf("acc=%.2f,%.2f,%.2f gyro=%.1f,%.1f,%.1f\n", acc[0], acc[1], acc[2], gyro[0], gyro[1], gyro[2]);
   }
   else if (cmd.startsWith("kp=")) { kp = cmd.substring(3).toFloat(); Serial.printf("kp=%.2f\n", kp); }
   else if (cmd.startsWith("ki=")) { ki = cmd.substring(3).toFloat(); Serial.printf("ki=%.2f\n", ki); }
   else if (cmd.startsWith("kd=")) { kd = cmd.substring(3).toFloat(); Serial.printf("kd=%.2f\n", kd); }
+  else if (cmd.startsWith("kpower=")) { kpower = cmd.substring(7).toFloat(); Serial.printf("kpower=%.4f\n", kpower); }
   else if (cmd.startsWith("kspd=")) { kspd = cmd.substring(5).toFloat(); Serial.printf("kspd=%.2f\n", kspd); }
   else if (cmd.startsWith("kdst=")) { kdst = cmd.substring(5).toFloat(); Serial.printf("kdst=%.2f\n", kdst); }
   else if (cmd.startsWith("po=")) { Pitch_offset = cmd.substring(3).toFloat(); Serial.printf("po=%.2f\n", Pitch_offset); }
   else if (cmd.startsWith("po2=")) { Pitch_offset2 = cmd.substring(4).toFloat(); Serial.printf("po2=%.2f\n", Pitch_offset2); }
+  else if (cmd.startsWith("bias=")) { targetBias = cmd.substring(5).toFloat(); Serial.printf("bias=%.2f\n", targetBias); }
+  else if (cmd.startsWith("plim=")) { power_limit = cmd.substring(5).toInt(); Serial.printf("plim=%d\n", power_limit); }
+  else if (cmd.startsWith("ppos=")) { power_pos_scale = cmd.substring(5).toFloat(); Serial.printf("ppos=%.2f\n", power_pos_scale); }
+  else if (cmd.startsWith("pneg=")) { power_neg_scale = cmd.substring(5).toFloat(); Serial.printf("pneg=%.2f\n", power_neg_scale); }
+  else if (cmd.startsWith("minp=")) { min_drive_power = cmd.substring(5).toInt(); Serial.printf("minp=%d\n", min_drive_power); }
+  else if (cmd.startsWith("minang=")) { min_drive_angle = cmd.substring(7).toFloat(); Serial.printf("minang=%.1f\n", min_drive_angle); }
   else if (cmd.startsWith("oL=")) { motor_offsetL = cmd.substring(3).toInt(); Serial.printf("oL=%d\n", motor_offsetL); }
   else if (cmd.startsWith("oR=")) { motor_offsetR = cmd.substring(3).toInt(); Serial.printf("oR=%d\n", motor_offsetR); }
 }
@@ -255,7 +290,7 @@ void setup() {
 
   Serial.println("=== Inverted Pendulum v3 (n_shinichi aligned) ===");
   Serial.printf("kp=%.2f ki=%.2f kd=%.2f po=%.0f\n", kp, ki, kd, Pitch_offset);
-  Serial.println("Commands: kp= kd= ki= po= po2= on off ?");
+  Serial.println("Commands: kp= kd= ki= po= po2= bias= zero on off ?");
 }
 
 // ============================================================
@@ -268,7 +303,7 @@ void loop() {
 
   // 10ms制御ループ（n_shinichi氏と同じ）
   if (millis() > ms10) {
-    if (-20 < Angle && Angle < 20) {
+    if (-45 < Angle && Angle < 45) {
       wait_count++;
       if (wait_count > 0) {
         PID_ctrl();
@@ -285,12 +320,21 @@ void loop() {
     updateDisplay();
     if (motor_sw == 1) {
       Serial.printf("D,%.1f,%d,%d,%d\n", Angle, power, powerL, powerR);
+      Serial.printf("X,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%d,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f\n",
+        Angle, dAngle, P_Angle, I_Angle, D_Angle, k_speed, Speed,
+        power, powerL, powerR, acc[0], acc[1], acc[2], gyro[0], gyro[1], gyro[2]);
     }
     
     // BtnA: ON/OFF
     if (digitalRead(BTN_A) == 0) {
       motor_sw = !motor_sw;
-      if (motor_sw == 0) { PID_reset(); servo_stop(); }
+      if (motor_sw == 1) {
+        PID_reset();
+        setBalanceReference();
+      } else {
+        PID_reset();
+        servo_stop();
+      }
       Serial.printf("Motor: %s\n", motor_sw ? "ON" : "OFF");
       delay(300);
     }
