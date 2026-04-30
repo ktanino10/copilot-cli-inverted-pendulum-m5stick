@@ -347,21 +347,19 @@ tools/data/failure_log_oscillation.csv   # D項・出力飽和が強く、小刻
 tools/data/failure_log_backward_run.csv  # 後ろへ逃げるが、飽和は少なく補正不足寄りだったログ
 ```
 
-##### CERN ROOT / matplotlib 可視化
+##### 転倒ログの可視化（PNG表示）
 
-`tools/visualize_root.py` を詳細ログ形式に対応させ、各ログから `.root` と `.png` を生成した。PyROOT は macOS 環境で標準ライブラリ警告が出ることがあるため、同じ情報を matplotlib PNG としても必ず保存する。
+`tools/visualize_root.py` を詳細ログ形式に対応させ、各ログからPNGを生成した。READMEではクリックしなくても見えるように、PNG画像だけを表に埋め込んで表示する。
 
 ```
 python3 tools/visualize_root.py tools/data/failure_log_*.csv
 ```
 
-生成物：
-
-| ログ | PNG | ROOT |
-|------|-----|------|
-| 後ろへ逃げるログ | [`failure_log_backward_run.png`](tools/data/failure_log_backward_run.png) | [`failure_log_backward_run.root`](tools/data/failure_log_backward_run.root) |
-| kspd/kdstが残って走り込むログ | [`failure_log_latest.png`](tools/data/failure_log_latest.png) | [`failure_log_latest.root`](tools/data/failure_log_latest.root) |
-| 小刻み振動・飽和ログ | [`failure_log_oscillation.png`](tools/data/failure_log_oscillation.png) | [`failure_log_oscillation.root`](tools/data/failure_log_oscillation.root) |
+| ログ | グラフ |
+|------|--------|
+| **後ろへ逃げるログ**<br>`failure_log_backward_run.csv`<br><br>Angle は小さい範囲に留まる一方、power が負側に偏り続ける。補正方向は合っているが、後退方向の補正不足またはサーボ低速域の効き不足が疑われる。 | <img src="tools/data/failure_log_backward_run.png" width="720" alt="後ろへ逃げるログの可視化"> |
+| **kspd/kdst が残って走り込むログ**<br>`failure_log_latest.csv`<br><br>`ki=0` でも速度・距離系が残り、走り込みを増幅していた時期のログ。 | <img src="tools/data/failure_log_latest.png" width="720" alt="速度距離系が残って走り込むログの可視化"> |
+| **小刻み振動・飽和ログ**<br>`failure_log_oscillation.csv`<br><br>D項・出力が強く、power が飽和してから Angle が ±45° を超え、制御停止する様子が見える。 | <img src="tools/data/failure_log_oscillation.png" width="720" alt="小刻み振動と出力飽和ログの可視化"> |
 
 可視化パネルには以下を含める：
 
@@ -372,7 +370,7 @@ python3 tools/visualize_root.py tools/data/failure_log_*.csv
 - IMU Signals（accZ / gyroX）
 - Angle vs Power
 
-例：後ろへ逃げるログでは、Angle が小さい範囲（数度）に留まる一方で、power が -30〜-80 程度に偏り続けており、**符号逆や飽和ではなく、後退方向の補正不足または低速域のサーボ効き不足**として読める。振動ログでは `power` が ±500 付近まで飽和し、Angle が ±45°を超えて制御停止する様子が見える。
+`.root` ファイルも同じディレクトリに保存しているが、READMEでは見やすさ優先でPNGのみ表示する。
 
 ##### 現在のファームウェア設定（次回の出発点）
 
