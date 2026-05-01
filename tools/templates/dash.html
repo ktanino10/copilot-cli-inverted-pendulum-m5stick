@@ -126,6 +126,31 @@ body.lang-jp [data-jp]::before{content:attr(data-jp)}
 @keyframes duckPop{from{transform:scale(.3) rotate(-25deg);opacity:0}}
 @keyframes duckBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
 @keyframes langZoom{from{transform:scale(.6);opacity:0}}
+
+/* Copilot analysis thinking + mood */
+.copilot-thinking{display:flex;align-items:center;gap:14px;padding:18px;
+  background:rgba(177,75,255,.08);border:1px dashed var(--purple);
+  font-family:'Share Tech Mono',monospace;color:#cdb4ff;letter-spacing:2px;
+  animation:thinkFade .35s ease}
+.copilot-thinking img{width:64px;height:64px;object-fit:contain;
+  filter:drop-shadow(0 0 12px var(--purple)) drop-shadow(0 0 22px var(--cyan));
+  animation:thinkBob .8s ease-in-out infinite alternate}
+.copilot-thinking .dots::after{content:'';animation:thinkDots 1.2s steps(4,end) infinite}
+@keyframes thinkFade{from{opacity:0;transform:translateY(-4px)}}
+@keyframes thinkBob{from{transform:translateY(-3px) rotate(-3deg)}to{transform:translateY(3px) rotate(3deg)}}
+@keyframes thinkDots{
+  0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}100%{content:'....'}
+}
+.aresult{position:relative}
+.copilot-mood{position:absolute;top:8px;right:8px;width:32px;height:32px;
+  object-fit:contain;pointer-events:none;opacity:.95;
+  animation:moodFloat 3s ease-in-out infinite alternate}
+.copilot-mood.ok{filter:drop-shadow(0 0 10px var(--cyan)) drop-shadow(0 0 20px #00ffd4)}
+.copilot-mood.warn{filter:drop-shadow(0 0 10px var(--amber)) drop-shadow(0 0 20px #ffb000)}
+.copilot-mood.err{filter:drop-shadow(0 0 10px var(--red)) drop-shadow(0 0 20px #ff3060);
+  animation:moodPulse .35s steps(2) infinite}
+@keyframes moodFloat{from{transform:translateY(-2px)}to{transform:translateY(2px)}}
+@keyframes moodPulse{50%{opacity:.4}}
 </style>
 </head>
 <body class="lang-en">
@@ -538,7 +563,27 @@ function runAnalysis(type) {
   const items = [...selected.values()].map(v => ({ s: v.data, c: COLORS[v.idx] }));
   const fn = ANALYZERS[type];
   if (!fn) return;
-  host.innerHTML = fn(items);
+  // Copilot thinking pose for ~0.6s, then real result + mood badge.
+  const thinkLabel = (document.body.classList.contains('lang-jp'))
+    ? 'COPILOT が解析中' : 'COPILOT IS ANALYZING';
+  host.innerHTML = `<div class="copilot-thinking">
+      <img src="/assets/copilot.gif" alt="Copilot">
+      <div><b>${thinkLabel}</b><span class="dots"></span></div>
+    </div>`;
+  setTimeout(() => {
+    const out = fn(items);
+    host.innerHTML = out;
+    // Mood ring: count ok/warn/err sections in the rendered result.
+    const okN = (out.match(/class="sec ok"/g) || []).length;
+    const warnN = (out.match(/class="sec warn"/g) || []).length;
+    const errN = (out.match(/class="sec err"/g) || []).length;
+    const mood = errN > 0 ? 'err' : (warnN > okN ? 'warn' : 'ok');
+    const badge = document.createElement('img');
+    badge.src = '/assets/copilot.gif';
+    badge.className = 'copilot-mood ' + mood;
+    badge.alt = 'Copilot mood';
+    host.appendChild(badge);
+  }, 600);
 }
 function sec(cls, html) { return `<div class="sec ${cls}">${html}</div>`; }
 function bar(pct, label) {

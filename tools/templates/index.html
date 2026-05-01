@@ -360,9 +360,85 @@
 
   /* copilot pulsing on REC */
   .copilot-rec{width:22px;height:22px;object-fit:contain;vertical-align:middle;
-    margin-right:6px;animation:pulse-soft 1.5s infinite;display:none}
+    margin-right:6px;animation:pulse-soft var(--rec-dur,1.5s) infinite;display:none}
   .copilot-rec.active{display:inline-block}
+  .copilot-rec.flash{filter:drop-shadow(0 0 14px var(--cyan)) brightness(1.6);transform:scale(1.25)}
   @keyframes pulse-soft{50%{opacity:.5;transform:scale(.9)}}
+  .rec-counter{display:inline-block;margin-left:8px;color:var(--cyan);
+    font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;
+    text-shadow:0 0 6px var(--cyan);min-width:140px}
+  .rec-counter.idle{color:#3a5a7a;text-shadow:none}
+  .rec-counter b{color:#fff;font-weight:normal}
+  /* copilot save flash */
+  @keyframes copilotSave{0%{transform:scale(1)}40%{transform:scale(1.7);filter:drop-shadow(0 0 18px var(--cyan)) brightness(1.8)}100%{transform:scale(1)}}
+  .copilot-rec.savepop{animation:copilotSave .55s ease-out}
+
+  /* Ducky PWM saturation alert */
+  .duck-sat{display:none;position:relative;width:46px;height:46px;margin-left:6px}
+  .duck-sat.show{display:inline-flex;align-items:center;justify-content:center;
+    animation:duckSatIn .25s ease-out}
+  .duck-sat img{width:42px;height:42px;object-fit:contain;
+    filter:drop-shadow(0 0 8px var(--amber)) drop-shadow(0 0 16px var(--red));
+    animation:duckShake .35s ease-in-out infinite alternate}
+  .duck-sat .satbadge{position:absolute;bottom:-2px;right:-6px;
+    background:var(--red);color:#000;font-family:Orbitron,sans-serif;font-weight:900;
+    font-size:9px;letter-spacing:1px;padding:2px 4px;border-radius:2px;
+    box-shadow:0 0 8px var(--red)}
+  @keyframes duckSatIn{from{transform:scale(.3) rotate(-15deg);opacity:0}}
+  @keyframes duckShake{from{transform:translateY(-2px) rotate(-5deg)}to{transform:translateY(2px) rotate(5deg)}}
+
+  /* Link-lost banner (Ducky guardian) */
+  #linkLostBanner{position:fixed;top:0;left:50%;transform:translate(-50%,-100%);
+    z-index:9997;background:linear-gradient(180deg,#3a1010,#1a0505);
+    border:1px solid var(--red);border-top:none;
+    color:#fff;font-family:Orbitron,sans-serif;letter-spacing:4px;font-size:13px;
+    padding:10px 22px 12px;display:flex;align-items:center;gap:14px;
+    box-shadow:0 6px 20px rgba(255,32,80,.35);
+    clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 100%,0 100%);
+    transition:transform .45s cubic-bezier(.2,1.4,.4,1)}
+  #linkLostBanner.show{transform:translate(-50%,0)}
+  #linkLostBanner img{width:48px;height:48px;object-fit:contain;
+    filter:drop-shadow(0 0 10px var(--red)) drop-shadow(0 0 18px var(--amber));
+    animation:duckShake .3s infinite alternate}
+  #linkLostBanner .ll-msg b{color:var(--red);text-shadow:0 0 8px var(--red)}
+  #linkLostBanner .ll-msg .small{display:block;font-family:'Share Tech Mono',monospace;
+    color:#ffb0b0;font-size:10px;letter-spacing:2px;margin-top:2px}
+
+  /* Fall-roller Ducky animation */
+  #fallRoller{position:fixed;bottom:14px;right:-180px;z-index:9996;
+    width:120px;height:120px;pointer-events:none}
+  #fallRoller img{width:100%;height:100%;object-fit:contain;
+    filter:drop-shadow(0 0 14px var(--amber))}
+  #fallRoller.go{animation:fallRoll 750ms cubic-bezier(.4,0,.6,1) forwards}
+  @keyframes fallRoll{
+    0%{right:-180px;transform:rotate(0)}
+    100%{right:calc(100% + 40px);transform:rotate(-720deg)}
+  }
+
+  /* Mascot parade easter egg */
+  #parade{position:fixed;bottom:0;left:-260px;z-index:9995;
+    display:none;align-items:flex-end;gap:14px;padding:12px 18px;
+    background:linear-gradient(180deg,transparent,rgba(0,255,255,.08));
+    border-top:1px solid var(--cyan);width:240px;justify-content:space-around}
+  #parade.go{display:flex;animation:paradeMarch 3s linear forwards}
+  #parade img{width:48px;height:48px;object-fit:contain;
+    filter:drop-shadow(0 0 8px var(--cyan));animation:paradeBounce .5s infinite alternate}
+  #parade img:nth-child(1){animation-delay:0s}
+  #parade img:nth-child(2){animation-delay:.1s;filter:drop-shadow(0 0 8px var(--purple))}
+  #parade img:nth-child(3){animation-delay:.2s;filter:drop-shadow(0 0 8px var(--amber))}
+  #parade img:nth-child(4){animation-delay:.3s;filter:brightness(0) invert(1) drop-shadow(0 0 8px #fff)}
+  #parade .pcap{position:absolute;top:-22px;left:50%;transform:translateX(-50%);
+    font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:6px;
+    color:var(--cyan);text-shadow:0 0 8px var(--cyan);white-space:nowrap}
+  @keyframes paradeMarch{
+    0%{left:-260px}
+    15%{left:0}
+    85%{left:calc(100% - 240px)}
+    100%{left:100%}
+  }
+  @keyframes paradeBounce{from{transform:translateY(0)}to{transform:translateY(-6px)}}
+
+  .octocat{cursor:pointer;user-select:none}
 
   /* session row mascot indicator */
   .session-row .out-mascot{width:24px;height:24px;object-fit:contain;flex-shrink:0;
@@ -425,6 +501,27 @@
   <div class="lsub" id="langSplashSub">ENGLISH MODE</div>
 </div>
 
+<!-- Ducky link-lost banner -->
+<div id="linkLostBanner" aria-hidden="true">
+  <img src="/assets/duck.gif" alt="Ducky">
+  <div class="ll-msg">
+    <b><span data-en="LINK LOST" data-jp="接続断"></span></b>
+    <span class="small"><span data-en="DUCKY IS WATCHING — RETRYING..." data-jp="Ducky が監視中 — 再接続試行中..."></span></span>
+  </div>
+</div>
+
+<!-- Ducky fall-moment roller -->
+<div id="fallRoller" aria-hidden="true"><img src="/assets/duck.gif" alt="Ducky fall"></div>
+
+<!-- Mascot parade easter egg -->
+<div id="parade" aria-hidden="true">
+  <span class="pcap">IPS CREW</span>
+  <img src="/assets/github-mark.png" alt="Octocat">
+  <img src="/assets/copilot.gif" alt="Copilot">
+  <img src="/assets/mascot.gif" alt="Mona">
+  <img src="/assets/duck.gif" alt="Ducky">
+</div>
+
 <!-- toast notifications -->
 <div id="toasts"></div>
 
@@ -457,6 +554,10 @@
             <img src="/assets/mascot.gif" alt="Mona">
           </div>
           <div class="mona-status" id="monaStatus"><span data-en="STABLE" data-jp="安定"></span></div>
+          <div class="duck-sat" id="duckSat" aria-hidden="true">
+            <img src="/assets/duck.gif" alt="Ducky SAT">
+            <span class="satbadge">SAT!</span>
+          </div>
         </div>
       </div>
       <div class="btnrow">
@@ -477,6 +578,7 @@
       </div>
       <canvas id="chart" width="600" height="200"></canvas>
       <div id="recInfo">> <span data-en="NO ACTIVE RECORDING" data-jp="記録中ではありません"></span></div>
+      <div class="rec-counter idle" id="recCounter"></div>
     </div>
 
     <!-- SYSLOG -->
@@ -697,6 +799,9 @@ function updateMona(angle, dangle, motorOn) {
 
 // ═══ Status ═══
 let lastStatus = null;
+let linkFailStreak = 0;
+let satStartTs = 0;
+let lastFallSign = 0;
 async function fetchStatus() {
   try {
     const r = await fetch('/api/s');
@@ -704,6 +809,8 @@ async function fetchStatus() {
     if (j.error) throw new Error(j.error);
     lastStatus = j;
     document.getElementById('led_link').className = 'led';
+    if (linkFailStreak >= 3) hideLinkLost();
+    linkFailStreak = 0;
     const a = j.angle, ab = Math.abs(a);
     const angEl = document.getElementById('ang');
     angEl.textContent = (a >= 0 ? '+' : '') + a.toFixed(1) + '°';
@@ -717,6 +824,8 @@ async function fetchStatus() {
     document.getElementById('batt_top').textContent = (j.batt || 0).toFixed(2);
     document.getElementById('led_motor').className = 'led ' + (j.on ? '' : 'off');
     updateMona(a, j.dangle || 0, !!j.on);
+    updateDuckSat(j);
+    updateFallRoller(a, !!j.on);
     PARAMS.forEach(([k]) => {
       if (k in j && document.activeElement !== refs[k].r && document.activeElement !== refs[k].n) {
         refs[k].r.value = j[k]; refs[k].n.value = j[k];
@@ -725,8 +834,63 @@ async function fetchStatus() {
     return j;
   } catch (e) {
     document.getElementById('led_link').className = 'led off';
+    linkFailStreak++;
+    if (linkFailStreak === 3) showLinkLost();
     return null;
   }
+}
+
+// ═══ Ducky: PWM saturation alert ═══
+//   |power| >= plim*0.95 が >300ms 連続で SAT バッジ表示。解消で消す。
+function updateDuckSat(j) {
+  const sat = document.getElementById('duckSat');
+  if (!sat) return;
+  const lim = j.plim || 350;
+  const sated = Math.abs(j.power || 0) >= lim * 0.95 && !!j.on;
+  const now = Date.now();
+  if (sated) {
+    if (!satStartTs) satStartTs = now;
+    if (now - satStartTs > 300 && !sat.classList.contains('show')) {
+      sat.classList.add('show');
+    }
+  } else {
+    satStartTs = 0;
+    if (sat.classList.contains('show')) sat.classList.remove('show');
+  }
+}
+
+// ═══ Ducky: link-lost banner ═══
+function showLinkLost() {
+  const el = document.getElementById('linkLostBanner');
+  if (el && !el.classList.contains('show')) el.classList.add('show');
+}
+function hideLinkLost() {
+  const el = document.getElementById('linkLostBanner');
+  if (el && el.classList.contains('show')) el.classList.remove('show');
+}
+
+// ═══ Ducky: fall-moment roller ═══
+//   |angle| が ±15° を新たに超えた瞬間に画面右下 → 左へ転がる演出。
+//   同じ向きの転倒で連続発火しないように lastFallSign を保持。
+function updateFallRoller(angle, motorOn) {
+  if (!motorOn) { lastFallSign = 0; return; }
+  const sign = angle > 15 ? 1 : angle < -15 ? -1 : 0;
+  if (sign === 0) {
+    if (Math.abs(angle) < 8) lastFallSign = 0; // 平静に戻ったらリセット
+    return;
+  }
+  if (sign !== lastFallSign) {
+    lastFallSign = sign;
+    triggerFallRoller();
+  }
+}
+function triggerFallRoller() {
+  const el = document.getElementById('fallRoller');
+  if (!el) return;
+  el.classList.remove('go');
+  void el.offsetWidth;
+  el.classList.add('go');
+  setTimeout(() => el.classList.remove('go'), 800);
 }
 
 // ═══ Live ring chart ═══
@@ -779,23 +943,30 @@ function drawLive() {
 
 // ═══ Recording ═══
 let recording = false, recStart = 0, recSamples = [], recParams = {};
+let copilotFlashTs = 0;
 function startTest() {
   if (recording) return;
   if (!lastStatus) { logmsg('✕ NO LINK TO DEVICE', 'err'); toast('error', 'duck', 'NO LINK TO DEVICE'); return; }
   recording = true; recStart = Date.now(); recSamples = []; recParams = {};
+  copilotFlashTs = recStart;
   PARAMS.forEach(([k]) => { if (k in lastStatus) recParams[k] = lastStatus[k]; });
   const b = document.getElementById('recBadge'); b.className = 'badge rec';
-  b.innerHTML = '<img src="/assets/copilot.gif" class="copilot-rec active">● REC';
+  b.innerHTML = '<img src="/assets/copilot.gif" class="copilot-rec active" id="copilotRec">● REC';
   document.getElementById('startBtn').disabled = true;
   document.getElementById('stopBtn').disabled = false;
+  const c = document.getElementById('recCounter');
+  if (c) { c.classList.remove('idle'); c.innerHTML = '<b>0</b> samples · <b>0.0</b>s'; }
   logmsg('▶ RECORDER STARTED', 'warn');
 }
 async function stopTest() {
   if (!recording) return;
   recording = false;
-  const b = document.getElementById('recBadge'); b.className = 'badge'; b.innerHTML = 'STANDBY';
+  const b = document.getElementById('recBadge'); b.className = 'badge';
+  b.innerHTML = '<img src="/assets/copilot.gif" class="copilot-rec" id="copilotRec"><span data-en="STANDBY" data-jp="待機"></span>';
   document.getElementById('startBtn').disabled = false;
   document.getElementById('stopBtn').disabled = true;
+  const c = document.getElementById('recCounter');
+  if (c) { c.classList.add('idle'); c.innerHTML = ''; }
   const name = (document.getElementById('testName').value || 'test').trim();
   const stats = computeStats(recSamples);
   const data = {
@@ -815,6 +986,7 @@ async function stopTest() {
     const r = await fetch('/api/sessions', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
     const j = await r.json();
     logmsg('💾 SAVED → ' + j.id, 'ok');
+    flashCopilotSave();
     // contextual mascot toast based on outcome
     if (stats.fall_dir === 'standing') {
       toast('success', 'mona', `SAVED · STANDING ✓ ${(data.duration/1000).toFixed(1)}s`);
@@ -845,6 +1017,7 @@ function computeStats(samples) {
 }
 
 // ═══ Main loop ═══
+let _flashCounter = 0;
 async function tick() {
   const j = await fetchStatus();
   if (j) {
@@ -853,11 +1026,52 @@ async function tick() {
       const t = Date.now() - recStart;
       recSamples.push({ t, angle: j.angle, dangle: j.dangle, power: j.power, p: j.p_term, d: j.d_term, speed: j.speed });
       document.getElementById('recInfo').textContent = `> REC ${recSamples.length}pts / ${(t/1000).toFixed(1)}s / ∠=${j.angle.toFixed(1)}°`;
+      // live Copilot counter beside REC badge
+      const c = document.getElementById('recCounter');
+      if (c) c.innerHTML = `<b>${recSamples.length}</b> samples · <b>${(t/1000).toFixed(1)}</b>s`;
+      // accelerate Copilot REC pulse: 1.5s → 0.4s as time goes on (caps at 30s)
+      const dur = Math.max(0.4, 1.5 - Math.min(t, 30000) / 30000 * 1.1).toFixed(2);
+      const cr = document.getElementById('copilotRec');
+      if (cr) cr.style.setProperty('--rec-dur', dur + 's');
+      // periodic flash every ~5s to signal "samples coming in"
+      if (t - _flashCounter > 5000 && cr) {
+        _flashCounter = t;
+        cr.classList.add('flash');
+        setTimeout(() => cr && cr.classList.remove('flash'), 350);
+      }
     }
   }
   drawLive();
 }
+function flashCopilotSave() {
+  const cr = document.getElementById('copilotRec');
+  if (!cr) return;
+  cr.classList.add('savepop');
+  setTimeout(() => cr && cr.classList.remove('savepop'), 600);
+}
 setInterval(tick, 50);
+
+// ═══ Octocat 5-click parade easter egg ═══
+(function octocatParade() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const oc = document.querySelector('.octocat');
+    if (!oc) return;
+    let clicks = 0, lastClick = 0;
+    oc.addEventListener('click', () => {
+      const now = Date.now();
+      if (now - lastClick > 1500) clicks = 0;
+      lastClick = now;
+      clicks++;
+      if (clicks >= 5) {
+        clicks = 0;
+        const p = document.getElementById('parade');
+        if (!p) return;
+        p.classList.remove('go'); void p.offsetWidth; p.classList.add('go');
+        setTimeout(() => p && p.classList.remove('go'), 3100);
+      }
+    });
+  });
+})();
 
 // ═══ Sessions ═══
 let allSessions = []; const selected = new Set();
