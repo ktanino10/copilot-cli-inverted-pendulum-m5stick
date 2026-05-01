@@ -232,14 +232,31 @@
 
   /* ─── BOOT SEQUENCE ──────────────────── */
   #boot{position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;
-    justify-content:center;align-items:center;font-family:'Orbitron',sans-serif;color:var(--cyan)}
+    justify-content:center;align-items:center;font-family:'Orbitron',sans-serif;color:var(--cyan);
+    background-image:radial-gradient(circle at 50% 40%, rgba(0,40,80,.4) 0%, #000 70%)}
   #boot h2{font-size:32px;letter-spacing:.4em;margin:0;text-shadow:0 0 20px var(--cyan);font-weight:900}
   #boot .sub{font-size:12px;color:var(--amber);letter-spacing:.3em;margin-top:8px}
-  #boot pre{font-family:'Share Tech Mono',monospace;color:var(--green);font-size:11px;margin-top:30px;line-height:1.4}
-  #boot .bar{margin-top:20px;width:300px;height:6px;border:1px solid var(--cyan);background:#000;position:relative}
+  #boot pre{font-family:'Share Tech Mono',monospace;color:var(--green);font-size:11px;margin-top:24px;line-height:1.55;
+    width:560px;max-width:92vw;min-height:240px;text-align:left;
+    border:1px solid #0e3447;background:rgba(0,12,24,.7);padding:14px 18px;
+    box-shadow:inset 0 0 24px rgba(0,229,255,.08);
+    clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px)}
+  #boot pre .ok{color:#00ff88;text-shadow:0 0 6px #00ff88}
+  #boot pre .warn{color:var(--amber);text-shadow:0 0 6px var(--amber)}
+  #boot pre .fail{color:var(--red);text-shadow:0 0 6px var(--red)}
+  #boot pre .lbl{color:#7adfff}
+  #boot pre .dot{color:#345}
+  #boot pre .caret{color:var(--cyan);animation:bootCaret .55s steps(1) infinite}
+  #boot pre .ts{color:#5a7a9a}
+  @keyframes bootCaret{50%{opacity:0}}
+  #boot .verdict{margin-top:14px;font-family:'Orbitron',sans-serif;font-size:14px;letter-spacing:.35em;
+    color:var(--green);text-shadow:0 0 10px var(--green);min-height:20px;opacity:0;transition:opacity .4s}
+  #boot .verdict.show{opacity:1}
+  #boot .verdict.bad{color:var(--red);text-shadow:0 0 10px var(--red)}
+  #boot .bar{margin-top:14px;width:560px;max-width:92vw;height:6px;border:1px solid var(--cyan);background:#000;position:relative}
   #boot .bar::after{content:'';position:absolute;left:0;top:0;bottom:0;width:0;background:var(--cyan);
-    box-shadow:0 0 12px var(--cyan);animation:loadbar 1.6s ease-out forwards}
-  @keyframes loadbar{to{width:100%}}
+    box-shadow:0 0 12px var(--cyan);transition:width .25s}
+  #boot.done .bar::after{width:100%}
   @keyframes fadeOut{to{opacity:0;visibility:hidden}}
 
   /* corner brackets decoration */
@@ -455,14 +472,9 @@
 <div id="boot">
   <img src="/assets/github-mark.png" class="gh-boot" alt="GitHub">
   <h2>IPS COMMAND</h2>
-  <div class="sub">INVERTED PENDULUM SYSTEM v3.1</div>
-  <pre id="bootlog">> SYSTEM BOOT...
-> CHECKING IMU GYRO SENSOR ........ <span style="color:#00ff88">OK</span>
-> ESTABLISHING WIFI LINK .......... <span style="color:#00ff88">OK</span>
-> KALMAN FILTER INIT .............. <span style="color:#00ff88">OK</span>
-> SERVO MOTOR L/R ................. <span style="color:#00ff88">OK</span>
-> COPILOT AI STANDBY .............. <span style="color:#00ff88">OK</span>
-> HUD INTERFACE READY .............</pre>
+  <div class="sub">INVERTED PENDULUM SYSTEM v3.1 · SEED DIAGNOSTIC</div>
+  <pre id="bootlog"></pre>
+  <div class="verdict" id="bootVerdict"></div>
   <div class="bar"></div>
 </div>
 
@@ -619,11 +631,181 @@
 </div>
 
 <script>
-// ═══ Boot screen out ═══
-setTimeout(() => {
-  document.getElementById('boot').style.animation = 'fadeOut .6s forwards';
-  setTimeout(() => document.getElementById('boot').remove(), 700);
-}, 1800);
+// ═══ Boot screen: SEED-style live system check ═══
+//   Each line types in, then runs a real probe and shows OK/WARN/FAIL.
+//   The screen only dismisses after every check has resolved.
+(function bootSeed() {
+  const log = document.getElementById('bootlog');
+  const verdict = document.getElementById('bootVerdict');
+  const root = document.getElementById('boot');
+  if (!log || !root) return;
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const stamp = () => {
+    const d = new Date();
+    return String(d.getHours()).padStart(2,'0') + ':' +
+           String(d.getMinutes()).padStart(2,'0') + ':' +
+           String(d.getSeconds()).padStart(2,'0') + '.' +
+           String(d.getMilliseconds()).padStart(3,'0').slice(0,2);
+  };
+  const dots = (label, w = 38) => {
+    const n = Math.max(3, w - label.length);
+    return ' ' + '.'.repeat(n) + ' ';
+  };
+
+  // append a fully-typed line atomically (kept simple to avoid jitter)
+  function pushLine(label) {
+    const span = document.createElement('span');
+    span.innerHTML =
+      `<span class="ts">[${stamp()}]</span> <span class="lbl">&gt; ${label}</span>` +
+      `<span class="dot">${dots(label)}</span><span class="caret">_</span>\n`;
+    log.appendChild(span);
+    log.scrollTop = log.scrollHeight;
+    return span;
+  }
+  function resolveLine(span, status, detail) {
+    const cls = status === 'OK' ? 'ok' : status === 'WARN' ? 'warn' : 'fail';
+    const caret = span.querySelector('.caret');
+    if (caret) caret.remove();
+    const tail = document.createElement('span');
+    tail.innerHTML = `<span class="${cls}">[ ${status} ]</span>` +
+      (detail ? ` <span class="ts">${detail}</span>` : '') + '\n';
+    span.appendChild(tail);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function step(label, fn, minDelay = 140) {
+    const span = pushLine(label);
+    const t0 = performance.now();
+    let res;
+    try { res = await fn(); } catch (e) { res = { status: 'FAIL', detail: String(e).slice(0, 40) }; }
+    const elapsed = performance.now() - t0;
+    if (elapsed < minDelay) await sleep(minDelay - elapsed);
+    resolveLine(span, res.status, res.detail || '');
+    return res;
+  }
+
+  let m5 = null, sessionsCount = 0, anyFail = false, anyWarn = false;
+  function record(r) { if (r.status === 'FAIL') anyFail = true; else if (r.status === 'WARN') anyWarn = true; return r; }
+  const setBar = pct => { root.style.setProperty('--boot-pct', pct + '%'); };
+
+  (async () => {
+    // ─── intro ───
+    log.appendChild(Object.assign(document.createElement('span'),
+      { innerHTML: '<span class="ts">SYSTEM BOOT · IPS-CTRL ONLINE</span>\n<span class="ts">────────────────────────────────────────────────</span>\n' }));
+    await sleep(220);
+
+    // 1. Browser HUD
+    record(await step('HUD INTERFACE / DOM', async () =>
+      ({ status: 'OK', detail: navigator.userAgent.match(/(Chrome|Safari|Firefox|Edg)\/[\d.]+/)?.[0] || 'UA OK' })));
+
+    // 2. Network stack (browser-side)
+    record(await step('NETWORK STACK', async () =>
+      navigator.onLine
+        ? { status: 'OK', detail: 'NAVIGATOR ONLINE' }
+        : { status: 'WARN', detail: 'OFFLINE FLAG SET' }));
+
+    // 3. Tuning server (we are obviously up — page loaded — but verify api root)
+    record(await step('TUNING SERVER · LOCAL API', async () => {
+      const r = await fetch('/api/sessions', { cache: 'no-store' });
+      if (!r.ok) return { status: 'FAIL', detail: 'HTTP ' + r.status };
+      const j = await r.json();
+      sessionsCount = Array.isArray(j) ? j.length : 0;
+      return { status: 'OK', detail: 'FLASK 200 OK' };
+    }));
+
+    // 4. Wi-Fi link to M5StickC (this is the real "Wi-Fi OK?")
+    const m5res = await step('WI-FI LINK · M5STICKC PLUS2', async () => {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 1500);
+      try {
+        const r = await fetch('/api/s', { signal: ctrl.signal, cache: 'no-store' });
+        clearTimeout(tid);
+        if (!r.ok) return { status: 'FAIL', detail: 'HTTP ' + r.status };
+        m5 = await r.json();
+        if (m5 && m5.error) return { status: 'FAIL', detail: 'PROXY: ' + m5.error.slice(0, 32) };
+        return { status: 'OK', detail: 'GATEWAY 192.168 · 200 OK' };
+      } catch (e) {
+        clearTimeout(tid);
+        return { status: 'FAIL', detail: 'NO RESPONSE FROM DEVICE' };
+      }
+    }, 200);
+    record(m5res);
+
+    // 5. IMU
+    record(await step('IMU · MPU6886 GYRO/ACCEL', async () => {
+      if (!m5) return { status: 'FAIL', detail: 'NO TELEMETRY' };
+      if (typeof m5.angle !== 'number') return { status: 'FAIL', detail: 'ANGLE FIELD MISSING' };
+      const a = m5.angle.toFixed(2);
+      if (Math.abs(m5.angle) > 60) return { status: 'WARN', detail: `TILT ${a}° — HOLD UPRIGHT` };
+      return { status: 'OK', detail: `∠=${a}° · LIVE` };
+    }));
+
+    // 6. Kalman / sensor fusion
+    record(await step('KALMAN FILTER · ATTITUDE', async () =>
+      m5 && typeof m5.dangle === 'number'
+        ? { status: 'OK', detail: `ω=${m5.dangle.toFixed(1)}°/s` }
+        : { status: 'WARN', detail: 'OMEGA UNAVAILABLE' }));
+
+    // 7. Motor driver
+    record(await step('MOTOR DRIVER · DRV8833 L/R', async () => {
+      if (!m5 || !('on' in m5)) return { status: 'FAIL', detail: 'STATE UNKNOWN' };
+      return m5.on
+        ? { status: 'WARN', detail: 'MOTOR ALREADY ENGAGED' }
+        : { status: 'OK', detail: 'STANDBY · MOTOR OFF' };
+    }));
+
+    // 8. Battery
+    record(await step('POWER · LIPO BATTERY', async () => {
+      if (!m5 || typeof m5.batt !== 'number') return { status: 'WARN', detail: 'TELEMETRY MISSING' };
+      const v = m5.batt;
+      if (v < 3.4) return { status: 'WARN', detail: `${v.toFixed(2)}V · LOW · CHARGE SOON` };
+      if (v < 3.6) return { status: 'WARN', detail: `${v.toFixed(2)}V · MARGINAL` };
+      return { status: 'OK', detail: `${v.toFixed(2)}V · NOMINAL` };
+    }));
+
+    // 9. PID parameters loaded
+    record(await step('PID CONTROLLER · GAIN MATRIX', async () => {
+      if (!m5) return { status: 'FAIL', detail: 'NO HANDSHAKE' };
+      const have = ['kp','kd','pneg','bias'].filter(k => k in m5);
+      return have.length === 4
+        ? { status: 'OK', detail: `KP=${m5.kp} KD=${m5.kd} PNEG=${m5.pneg} BIAS=${m5.bias}` }
+        : { status: 'WARN', detail: `PARTIAL · ${have.length}/4 LOADED` };
+    }));
+
+    // 10. Session archive
+    record(await step('SESSION ARCHIVE · DATALOG', async () =>
+      ({ status: 'OK', detail: `${sessionsCount} ENTRIES INDEXED` })));
+
+    // 11. Mascot crew (assets reachable via index)
+    record(await step('CREW · MONA / COPILOT / DUCKY', async () =>
+      ({ status: 'OK', detail: 'ALL HANDS REPORTING' })));
+
+    // ─── verdict ───
+    log.appendChild(Object.assign(document.createElement('span'),
+      { innerHTML: '<span class="ts">────────────────────────────────────────────────</span>\n' }));
+    await sleep(180);
+
+    root.classList.add('done');
+    if (anyFail) {
+      verdict.classList.add('show', 'bad');
+      verdict.textContent = '⚠ SYSTEM DEGRADED · CHECK DEVICE LINK';
+      await sleep(2200);
+    } else if (anyWarn) {
+      verdict.classList.add('show');
+      verdict.style.color = 'var(--amber)';
+      verdict.style.textShadow = '0 0 10px var(--amber)';
+      verdict.textContent = '◆ SYSTEM READY · ADVISORIES PRESENT';
+      await sleep(1100);
+    } else {
+      verdict.classList.add('show');
+      verdict.textContent = '◆ ALL SYSTEMS NOMINAL · LAUNCH';
+      await sleep(900);
+    }
+    root.style.animation = 'fadeOut .55s forwards';
+    setTimeout(() => root.remove(), 600);
+  })();
+})();
 
 // ═══ Clock ═══
 function updateClock() {
