@@ -87,6 +87,33 @@ td .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-
 .aresult .sec.ok b{color:var(--green)}
 .aresult .sec.warn b{color:var(--amber)}
 .aresult .sec.err b{color:var(--red)}
+
+/* GREEN ZONE banner — what to change to keep ATTITUDE in the green stable band */
+.green-banner{background:linear-gradient(90deg,rgba(0,255,136,.12),rgba(0,229,255,.06));
+  border:1px solid rgba(0,255,136,.4);border-left:4px solid var(--green);
+  padding:12px 14px;margin-bottom:14px;font-family:'Share Tech Mono',monospace;
+  color:#d6ffea;letter-spacing:1px;border-radius:2px}
+.green-banner .gh{display:flex;align-items:center;gap:10px;font-family:Orbitron,sans-serif;
+  color:var(--green);font-size:13px;letter-spacing:3px;text-shadow:0 0 8px var(--green);
+  margin-bottom:8px}
+.green-banner .gh .icon{display:inline-block;width:10px;height:10px;border-radius:50%;
+  background:var(--green);box-shadow:0 0 10px var(--green);animation:greenPulse 1.6s infinite}
+.green-banner .gbar{position:relative;height:18px;background:rgba(0,0,0,.4);
+  border:1px solid #1a3a3a;overflow:hidden;margin:6px 0 4px}
+.green-banner .gbar .fill{position:absolute;top:0;left:0;bottom:0;
+  background:linear-gradient(90deg,var(--green),#00ffd4);
+  box-shadow:0 0 12px var(--green);transition:width .4s ease}
+.green-banner .gbar .goal{position:absolute;top:-3px;bottom:-3px;width:2px;
+  background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.green-banner .glabel{display:flex;justify-content:space-between;font-size:10px;color:#7fb8a8;margin-bottom:8px}
+.green-banner .gtip{margin-top:8px;padding:8px 10px;background:rgba(0,0,0,.35);
+  border-left:2px solid var(--cyan);color:#bfe8ff}
+.green-banner .gtip b{color:var(--cyan)}
+.green-banner .gsess{margin-top:6px;font-size:11px;color:#9fcfb5}
+.green-banner .gsess .pct{display:inline-block;min-width:48px;color:var(--green);font-weight:700;text-align:right}
+.green-banner .gsess .pct.bad{color:var(--red)}
+.green-banner .gsess .pct.warn{color:var(--amber)}
+@keyframes greenPulse{50%{opacity:.4;transform:scale(.85)}}
 .aresult .verdict{margin-top:12px;padding:12px;background:linear-gradient(90deg,rgba(177,75,255,.15),rgba(0,229,255,.05));border:1px dashed var(--purple);font-size:13px;line-height:1.7}
 .aresult .verdict h4{color:var(--purple);font-family:Orbitron,sans-serif;letter-spacing:2px;font-size:11px;margin-bottom:6px}
 .aresult .bar{height:14px;background:#0a1828;position:relative;border:1px solid var(--grid);margin:4px 0}
@@ -218,6 +245,7 @@ body.lang-jp [data-jp]::before{content:attr(data-jp)}
         <button class="abtn" onclick="runAnalysis('fft')"><span class="ttl"><span data-en="OSCILLATION FFT" data-jp="振動スペクトル"></span></span><span class="desc" data-en="dominant frequencies" data-jp="振動の主周波数"></span></button>
         <button class="abtn" onclick="runAnalysis('contrib')"><span class="ttl"><span data-en="P/D CONTRIB" data-jp="P/D寄与度"></span></span><span class="desc" data-en="P vs D term contribution" data-jp="P項とD項の寄与度"></span></button>
         <button class="abtn" onclick="runAnalysis('suggest')"><span class="ttl"><span data-en="SUGGEST PARAMS" data-jp="次の設定案"></span></span><span class="desc" data-en="next params to try" data-jp="次に試すパラメータ"></span></button>
+        <button class="abtn" onclick="runAnalysis('optimal')" style="border-color:var(--green)"><span class="ttl" style="color:var(--green)"><span data-en="OPTIMAL → GREEN" data-jp="最適化 → 緑"></span></span><span class="desc" data-en="regress params, predict optimum (CI/heatmap)" data-jp="緑帯滞在を最大化する数値を回帰で特定 (誤差棒/ヒート)"></span></button>
       </div>
       <div class="aresult" id="aResult">
         <div class="empty"><span data-en="pick an analysis above" data-jp="上のボタンから解析を選択"></span></div>
@@ -556,6 +584,115 @@ function rebuildDiag() {
 
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// ─── GREEN ZONE BANNER ───
+// 期待姿勢 (ATTITUDE 緑帯 = |angle| ≤ 5°) に何 % 滞在しているか、
+// そして 80% 達成のために最も効く一手を提示する。
+// 全解析結果の冒頭に挿入される。
+const GREEN_GOAL_PCT = 80;
+function greenStayPct(s) {
+  const samples = s.samples || [];
+  if (!samples.length) return 0;
+  return samples.filter(p => Math.abs(p.angle) <= 5).length / samples.length * 100;
+}
+// 「緑帯に入るための最重要アクション」を1つ返す。
+// 優先順: 飽和 > alimカットオフ > 偏倒 > 高振動 > D不足 > kp微調整
+function topGreenFix(s) {
+  const stats = s.stats || {};
+  const params = s.params || {};
+  const samples = s.samples || [];
+  const ps = samples.map(p => Math.abs(p.power || 0));
+  const plim = params.plim || 350;
+  const satPct = ps.length ? ps.filter(p => p >= plim * 0.95).length / ps.length * 100 : 0;
+  const sp = samples.reduce((a, b) => a + Math.abs(b.p || 0), 0);
+  const sd = samples.reduce((a, b) => a + Math.abs(b.d || 0), 0);
+  const dRatio = sd / (sp + sd || 1);
+
+  if (satPct > 30) {
+    const v = Math.round(plim * 1.2);
+    return { jp: `PWM飽和${satPct.toFixed(0)}% — 押し負けて緑帯に戻れない。<b>plim ${plim}→${v}</b> へ引き上げ、または kp を1割下げる。`,
+             en: `PWM saturating ${satPct.toFixed(0)}% — motor maxed out, can't recover. Raise <b>plim ${plim}→${v}</b> or drop kp by 10%.`,
+             cmd: `plim=${v}` };
+  }
+  if (params.alim && stats.max_abs_angle > params.alim && stats.max_abs_angle < params.alim * 1.5) {
+    const v = params.alim + 15;
+    return { jp: `alim=${params.alim} で制御カットオフ → 復帰できない。<b>alim ${params.alim}→${v}</b> に拡張。`,
+             en: `alim=${params.alim} cuts off recovery. Widen <b>alim ${params.alim}→${v}</b>.`,
+             cmd: `alim=${v}` };
+  }
+  if (stats.fall_dir === 'backward' && stats.max_abs_angle > 15) {
+    const b = +(((params.bias || 0) - 1.0).toFixed(2));
+    const pn = +((params.pneg * 1.1).toFixed(2));
+    return { jp: `後方に偏って倒れる → 緑帯に戻る前に振り切る。<b>bias=${b}</b> & <b>pneg ${params.pneg}→${pn}</b>。`,
+             en: `Falls backward — never returns to green. Try <b>bias=${b}</b> & <b>pneg ${params.pneg}→${pn}</b>.`,
+             cmd: `bias=${b} pneg=${pn}` };
+  }
+  if (stats.fall_dir === 'forward' && stats.max_abs_angle > 15) {
+    const b = +(((params.bias || 0) + 1.0).toFixed(2));
+    const pp = +((params.ppos * 1.1).toFixed(2));
+    return { jp: `前方に偏って倒れる → 緑帯に戻る前に振り切る。<b>bias=${b}</b> & <b>ppos ${params.ppos}→${pp}</b>。`,
+             en: `Falls forward — never returns to green. Try <b>bias=${b}</b> & <b>ppos ${params.ppos}→${pp}</b>.`,
+             cmd: `bias=${b} ppos=${pp}` };
+  }
+  if (stats.osc_hz > 4) {
+    const kp = +(params.kp * 0.9).toFixed(1);
+    const kd = +(params.kd * 1.2).toFixed(2);
+    return { jp: `${stats.osc_hz.toFixed(1)}Hz の高振動で緑帯を貫通し続ける。<b>kp ${params.kp}→${kp}</b> で剛性緩和、<b>kd ${params.kd}→${kd}</b> で減衰。`,
+             en: `${stats.osc_hz.toFixed(1)}Hz oscillation crosses green band. Soften <b>kp ${params.kp}→${kp}</b>, damp <b>kd ${params.kd}→${kd}</b>.`,
+             cmd: `kp=${kp} kd=${kd}` };
+  }
+  if (dRatio < 0.10 && stats.fall_dir !== 'standing') {
+    const kd = +(params.kd * 1.3).toFixed(2);
+    return { jp: `D項寄与 ${(dRatio * 100).toFixed(0)}% と小さく、揺れを止め切れない。<b>kd ${params.kd}→${kd}</b> で先読み減衰を強化。`,
+             en: `D-term contribution only ${(dRatio * 100).toFixed(0)}%. Boost damping with <b>kd ${params.kd}→${kd}</b>.`,
+             cmd: `kd=${kd}` };
+  }
+  // すでに緑帯滞在が多いケース
+  if (greenStayPct(s) >= GREEN_GOAL_PCT) {
+    return { jp: `★ 既に目標 ${GREEN_GOAL_PCT}% を達成。再現性を取るため同設定で複数回テスト推奨。`,
+             en: `★ Already at goal ${GREEN_GOAL_PCT}%. Re-run with same params to confirm reproducibility.`,
+             cmd: '' };
+  }
+  // 微調整
+  const kpHi = +(params.kp * 1.05).toFixed(1);
+  return { jp: `大きな問題は無いが緑帯滞在不足。<b>kp ${params.kp}→${kpHi}</b> で復元力を僅かに強化して様子見。`,
+           en: `No major fault but stays out of green band. Nudge <b>kp ${params.kp}→${kpHi}</b> for slightly stronger restoration.`,
+           cmd: `kp=${kpHi}` };
+}
+function greenZoneBanner(items) {
+  const isJp = document.body.classList.contains('lang-jp');
+  // 対象が複数ある場合は「緑帯滞在率の最も低いセッション」を改善対象にする
+  const enriched = items.map(it => ({ ...it, gp: greenStayPct(it.s) }));
+  const worst = enriched.reduce((a, b) => (a.gp < b.gp ? a : b));
+  const bestPct = Math.max(...enriched.map(e => e.gp));
+  const worstPct = worst.gp;
+  const fix = topGreenFix(worst.s);
+  const tipText = isJp ? fix.jp : fix.en;
+  const headline = isJp ? '緑帯 (|∠| ≤ 5°) 滞在率' : 'GREEN ZONE (|∠| ≤ 5°) STAY';
+  const goalLabel = isJp ? `目標 ${GREEN_GOAL_PCT}%` : `goal ${GREEN_GOAL_PCT}%`;
+  const tipHead = isJp ? '緑になるための最重要アクション' : 'Top action to reach green';
+  const cmdLine = fix.cmd
+    ? `<br>　▶ <code style="color:var(--cyan);background:rgba(0,229,255,.08);padding:2px 6px">curl "/api/c?q=${encodeURIComponent(fix.cmd)}"</code>`
+    : '';
+  const sessLines = enriched.map(e => {
+    const cls = e.gp >= GREEN_GOAL_PCT ? '' : (e.gp >= 50 ? 'warn' : 'bad');
+    return `<div><span class="pct ${cls}">${e.gp.toFixed(0)}%</span> <span style="color:${e.c}">${escapeHtml(e.s.name)}</span></div>`;
+  }).join('');
+  // バー幅は worst (改善対象) に合わせる。複数あれば best を併記。
+  const barFill = Math.min(100, worstPct);
+  const goalLeft = GREEN_GOAL_PCT;
+  const showBest = enriched.length > 1 && bestPct !== worstPct;
+  return `<div class="green-banner">
+    <div class="gh"><span class="icon"></span>${headline}</div>
+    <div class="gbar">
+      <div class="fill" style="width:${barFill}%"></div>
+      <div class="goal" style="left:${goalLeft}%"></div>
+    </div>
+    <div class="glabel"><span>0%</span><span>${goalLabel} ▲</span><span>100%</span></div>
+    <div class="gsess">${sessLines}${showBest ? `<div style="opacity:.7;margin-top:2px;font-size:10px">best: ${bestPct.toFixed(0)}% / worst: ${worstPct.toFixed(0)}%</div>` : ''}</div>
+    <div class="gtip"><b>${tipHead}:</b> ${tipText}${cmdLine}</div>
+  </div>`;
+}
+
 // ───────────────────────────── ANALYSES ─────────────────────────────
 function runAnalysis(type) {
   const host = document.getElementById('aResult');
@@ -572,7 +709,8 @@ function runAnalysis(type) {
     </div>`;
   setTimeout(() => {
     const out = fn(items);
-    host.innerHTML = out;
+    const banner = (type === 'optimal') ? '' : greenZoneBanner(items);
+    host.innerHTML = banner + out;
     // Mood ring: count ok/warn/err sections in the rendered result.
     const okN = (out.match(/class="sec ok"/g) || []).length;
     const warnN = (out.match(/class="sec warn"/g) || []).length;
@@ -845,7 +983,330 @@ const ANALYZERS = {
     }
     return html;
   },
+
+  // ───── 8. OPTIMAL → GREEN (パラメータ最適化: 緑帯滞在を最大化する数値を回帰で特定) ─────
+  optimal(items) {
+    const isJp = document.body.classList.contains('lang-jp');
+    const t = (jp, en) => isJp ? jp : en;
+
+    if (items.length < 2) {
+      return sec('warn', t(
+        '<b>2 セッション以上を選択してください。</b><br>パラメータを変えて記録した複数セッションがあると、緑帯滞在 (|∠|≤5°) を最大化する設定値を回帰で特定できます。',
+        '<b>Pick 2 or more sessions.</b><br>With multiple runs at different parameter values, this analyzer regresses GREEN-zone (|∠|≤5°) stay against each parameter and predicts the optimum.'
+      ));
+    }
+
+    // (a) per-session metrics: green stay %, bootstrap 95% CI, duration weight
+    const POINT_TIME_MS = 50;     // sampling cadence used by the live loop
+    const BLOCK_MS = 1000;        // bootstrap block size for autocorrelated data
+    const N_BOOT = 400;
+    const enriched = items.map(({ s, c }) => {
+      const samp = s.samples || [];
+      const blockSize = Math.max(1, Math.round(BLOCK_MS / POINT_TIME_MS));
+      const inBand = samp.map(p => Math.abs(p.angle) <= 5 ? 1 : 0);
+      const mean = inBand.length ? inBand.reduce((a, b) => a + b, 0) / inBand.length : 0;
+      // moving block bootstrap to respect time-correlation
+      const nBlocks = Math.max(1, Math.floor(inBand.length / blockSize));
+      const boots = [];
+      for (let k = 0; k < N_BOOT; k++) {
+        let sum = 0, cnt = 0;
+        for (let b = 0; b < nBlocks; b++) {
+          const start = Math.floor(Math.random() * Math.max(1, inBand.length - blockSize + 1));
+          for (let j = 0; j < blockSize; j++) { sum += inBand[start + j] || 0; cnt++; }
+        }
+        boots.push(cnt ? sum / cnt : 0);
+      }
+      boots.sort((a, b) => a - b);
+      const lo = boots[Math.floor(N_BOOT * 0.025)] * 100;
+      const hi = boots[Math.floor(N_BOOT * 0.975)] * 100;
+      return { name: s.name, color: c, params: s.params || {}, gp: mean * 100, lo, hi, n: samp.length };
+    });
+
+    // (b) detect parameters that vary
+    const PARAM_LIST = ['kp','kd','ki','kspd','ppos','pneg','bias','alim','plim','kpower'];
+    const varying = PARAM_LIST.filter(k => {
+      const vs = enriched.map(e => e.params[k]).filter(v => v != null);
+      if (vs.length < 2) return false;
+      return new Set(vs.map(v => +v)).size >= 2;
+    });
+
+    let html = `<h3>${t('🎯 OPTIMAL PARAMETERS — 緑帯滞在 (|∠|≤5°) を最大化する数値', '🎯 OPTIMAL PARAMETERS — Maximize green-zone (|∠|≤5°) stay')}</h3>`;
+    html += `<div style="font-size:11px;color:#9fcfb5;margin-bottom:10px;font-family:'Share Tech Mono',monospace">${t(
+      `■ サンプル: ${items.length} セッション　■ 目的関数: 緑帯滞在率 = mean(1[|∠|≤5°])　■ 誤差棒: ブロックブートストラップ 95% CI (${BLOCK_MS}ms ブロック × ${N_BOOT} 回)`,
+      `■ Samples: ${items.length} sessions　■ Objective: green stay = mean(1[|∠|≤5°])　■ Error bars: moving-block bootstrap 95% CI (${BLOCK_MS}ms blocks × ${N_BOOT} resamples)`
+    )}</div>`;
+
+    if (varying.length === 0) {
+      html += sec('warn', t(
+        '選択セッション間でパラメータに差がありません。異なる kp/kd/bias などで記録したセッションを混ぜて選択してください。',
+        'No parameter varies across the selected sessions. Mix runs with different kp/kd/bias values to enable regression.'
+      ));
+      return html;
+    }
+
+    // (c) per-parameter scatter + quadratic fit
+    const fits = [];
+    varying.forEach(k => {
+      const pts = enriched.map(e => ({
+        x: +e.params[k], y: e.gp, lo: e.lo, hi: e.hi, name: e.name, color: e.color,
+      })).sort((a, b) => a.x - b.x);
+      const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+      const xmin = Math.min(...xs), xmax = Math.max(...xs);
+      const span = (xmax - xmin) || 1;
+      const padX = span * 0.15;
+      const xLo = xmin - padX, xHi = xmax + padX;
+      const ymax = Math.max(100, ...pts.map(p => p.hi));
+      const yLo = 0, yHi = Math.max(ymax * 1.05, 100);
+
+      // quadratic fit y = a*x^2 + b*x + c (least squares via normal equations) when ≥3 unique x
+      const uniq = new Set(xs.map(v => v.toFixed(6))).size;
+      let fit = null;
+      if (uniq >= 3) {
+        // build X^T X (3x3) and X^T y (3)
+        let s0=0,s1=0,s2=0,s3=0,s4=0,sy=0,sxy=0,sxxy=0;
+        for (let i = 0; i < xs.length; i++) {
+          const x = xs[i], y = ys[i];
+          s0++; s1+=x; s2+=x*x; s3+=x*x*x; s4+=x*x*x*x;
+          sy+=y; sxy+=x*y; sxxy+=x*x*y;
+        }
+        // solve 3x3
+        const M = [[s4,s3,s2],[s3,s2,s1],[s2,s1,s0]];
+        const v = [sxxy, sxy, sy];
+        const sol = solve3x3(M, v);
+        if (sol) {
+          const [a, b, c] = sol;
+          // vertex x* = -b/(2a); only meaningful when concave (a < 0)
+          const vx = a !== 0 ? -b / (2 * a) : null;
+          const vy = vx != null ? a*vx*vx + b*vx + c : null;
+          // R^2
+          const ymean = sy / s0;
+          let ssRes = 0, ssTot = 0;
+          for (let i = 0; i < xs.length; i++) {
+            const yp = a*xs[i]*xs[i] + b*xs[i] + c;
+            ssRes += (ys[i] - yp) ** 2;
+            ssTot += (ys[i] - ymean) ** 2;
+          }
+          const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+          fit = { a, b, c, vx, vy, r2, concave: a < 0 };
+        }
+      }
+      fits.push({ k, pts, fit, xLo, xHi, yLo, yHi });
+
+      // SVG render (600x220)
+      const W = 600, H = 220, ML = 50, MR = 18, MT = 18, MB = 38;
+      const px = x => ML + (x - xLo) / (xHi - xLo) * (W - ML - MR);
+      const py = y => H - MB - (y - yLo) / (yHi - yLo) * (H - MT - MB);
+      let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:rgba(0,0,0,.35);border:1px solid #1a3a5a;display:block">`;
+      // grid
+      svg += `<rect x="${ML}" y="${MT}" width="${W-ML-MR}" height="${H-MT-MB}" fill="rgba(0,229,255,.02)"/>`;
+      for (let g = 0; g <= 100; g += 25) {
+        const y = py(g);
+        svg += `<line x1="${ML}" x2="${W-MR}" y1="${y}" y2="${y}" stroke="#13334a" stroke-dasharray="3,3"/>`;
+        svg += `<text x="${ML-6}" y="${y+3}" fill="#5a7a9a" font-size="9" text-anchor="end" font-family="Share Tech Mono">${g}%</text>`;
+      }
+      // goal line
+      const gy = py(GREEN_GOAL_PCT);
+      svg += `<line x1="${ML}" x2="${W-MR}" y1="${gy}" y2="${gy}" stroke="#00ff88" stroke-dasharray="6,4" opacity=".7"/>`;
+      svg += `<text x="${W-MR-2}" y="${gy-3}" fill="#00ff88" font-size="9" text-anchor="end" font-family="Share Tech Mono">goal ${GREEN_GOAL_PCT}%</text>`;
+      // x ticks
+      for (let i = 0; i <= 4; i++) {
+        const xv = xLo + (xHi - xLo) * i / 4;
+        const x = px(xv);
+        svg += `<line x1="${x}" x2="${x}" y1="${py(yLo)}" y2="${py(yLo)+4}" stroke="#3a6a8a"/>`;
+        svg += `<text x="${x}" y="${py(yLo)+15}" fill="#5a7a9a" font-size="9" text-anchor="middle" font-family="Share Tech Mono">${(+xv.toFixed(3))}</text>`;
+      }
+      // axis labels
+      svg += `<text x="${(ML+W-MR)/2}" y="${H-6}" fill="#9fcfb5" font-size="11" text-anchor="middle" font-family="Orbitron" letter-spacing="2">${k.toUpperCase()}</text>`;
+      svg += `<text x="14" y="${MT+6}" fill="#9fcfb5" font-size="10" text-anchor="start" font-family="Orbitron" letter-spacing="1">GREEN%</text>`;
+      // fit curve
+      if (fit) {
+        let path = '';
+        const N = 60;
+        for (let i = 0; i <= N; i++) {
+          const x = xLo + (xHi - xLo) * i / N;
+          const y = Math.max(yLo, Math.min(yHi, fit.a*x*x + fit.b*x + fit.c));
+          path += (i === 0 ? 'M' : 'L') + px(x).toFixed(1) + ',' + py(y).toFixed(1) + ' ';
+        }
+        svg += `<path d="${path}" fill="none" stroke="#b14bff" stroke-width="1.5" opacity=".85" stroke-dasharray="4,3"/>`;
+        // vertex marker
+        if (fit.vx != null && fit.vx >= xLo && fit.vx <= xHi && fit.concave) {
+          const vx = px(fit.vx), vy = py(Math.max(yLo, Math.min(yHi, fit.vy)));
+          svg += `<line x1="${vx}" x2="${vx}" y1="${py(yLo)}" y2="${MT}" stroke="#00ff88" stroke-dasharray="2,2" opacity=".6"/>`;
+          svg += `<circle cx="${vx}" cy="${vy}" r="5" fill="none" stroke="#00ff88" stroke-width="2"/>`;
+          svg += `<text x="${vx+8}" y="${vy-6}" fill="#00ff88" font-size="10" font-family="Share Tech Mono">★ ${k}*=${(+fit.vx.toFixed(3))} → ${fit.vy.toFixed(0)}%</text>`;
+        }
+      }
+      // points + error bars
+      pts.forEach(p => {
+        const x = px(p.x), y = py(p.y), yl = py(p.lo), yh = py(p.hi);
+        svg += `<line x1="${x}" x2="${x}" y1="${yh}" y2="${yl}" stroke="${p.color}" stroke-width="1.5" opacity=".85"/>`;
+        svg += `<line x1="${x-4}" x2="${x+4}" y1="${yh}" y2="${yh}" stroke="${p.color}" stroke-width="1.5"/>`;
+        svg += `<line x1="${x-4}" x2="${x+4}" y1="${yl}" y2="${yl}" stroke="${p.color}" stroke-width="1.5"/>`;
+        svg += `<circle cx="${x}" cy="${y}" r="4" fill="${p.color}" stroke="#000" stroke-width="1"/>`;
+      });
+      svg += '</svg>';
+
+      // text summary for this param
+      let summary = '';
+      if (fit) {
+        const vxStr = fit.vx != null ? (+fit.vx.toFixed(3)) : '–';
+        const vyStr = fit.vy != null ? fit.vy.toFixed(0) + '%' : '–';
+        const cls = fit.concave && fit.vy >= GREEN_GOAL_PCT ? 'ok' : (fit.concave ? 'warn' : 'err');
+        const head = fit.concave
+          ? t(`凹型 (a=${fit.a.toExponential(2)}) → 内部最適あり`, `Concave (a=${fit.a.toExponential(2)}) → interior optimum`)
+          : t(`非凹 (a=${fit.a.toExponential(2)}) → 範囲端で最良`, `Non-concave (a=${fit.a.toExponential(2)}) → best at edge`);
+        const fitMsg = fit.concave
+          ? t(`予測最適 <b>${k}* = ${vxStr}</b>　予測 GREEN ≈ <b>${vyStr}</b>　R²=${fit.r2.toFixed(2)}`,
+              `Predicted optimum <b>${k}* = ${vxStr}</b>　predicted GREEN ≈ <b>${vyStr}</b>　R²=${fit.r2.toFixed(2)}`)
+          : t(`回帰結果は端で最大。範囲外を試す価値あり (現状の最良 = ${pts.reduce((a,b)=>a.y>b.y?a:b).x})`,
+              `Regression peaks at the edge — try beyond the current range (best so far = ${pts.reduce((a,b)=>a.y>b.y?a:b).x})`);
+        summary = `<div class="sec ${cls}" style="margin-top:6px"><b>${k.toUpperCase()}</b> · ${head}<br>${fitMsg}</div>`;
+      } else {
+        summary = `<div class="sec warn" style="margin-top:6px"><b>${k.toUpperCase()}</b> · ${t('ユニーク値が 3 未満のため二次回帰不可。3水準以上で再記録を。', 'Less than 3 unique values; quadratic fit not possible. Record more levels.')}</div>`;
+      }
+      html += `<div style="margin:14px 0">${svg}${summary}</div>`;
+    });
+
+    // (d) 2D heatmap when exactly 2 params vary
+    if (varying.length === 2) {
+      html += build2DHeatmap(varying[0], varying[1], enriched, t);
+    }
+
+    // (e) overall recommendation: combine each fit's optimum into one curl line
+    const recBits = [];
+    fits.forEach(({ k, fit, pts }) => {
+      if (fit && fit.concave && fit.vx != null) {
+        recBits.push(`${k}=${(+fit.vx.toFixed(3))}`);
+      } else if (pts.length) {
+        const best = pts.reduce((a, b) => a.y > b.y ? a : b);
+        recBits.push(`${k}=${(+best.x.toFixed(3))}`);
+      }
+    });
+    if (recBits.length) {
+      const cmd = recBits.join(' ');
+      html += `<div class="green-banner" style="margin-top:18px">
+        <div class="gh"><span class="icon"></span>${t('予測最適パラメータ — 緑帯最大化', 'PREDICTED OPTIMUM — maximize green stay')}</div>
+        <div class="gtip">${t('上記の回帰から推定した、緑帯滞在を最大化する候補値:', 'Combined recommendation from per-parameter regressions:')}<br>
+          <code style="color:var(--cyan);background:rgba(0,229,255,.08);padding:4px 8px;display:inline-block;margin-top:6px">curl "/api/c?q=${encodeURIComponent(cmd)}"</code>
+          <div style="margin-top:8px;font-size:11px;color:#9fcfb5">${t(
+            '注: 各パラメータ独立の二次回帰なので相互作用は無視。1つずつ実機で確認してください。',
+            'Note: per-param 1D quadratic fits ignore interactions. Validate one parameter at a time on the device.'
+          )}</div>
+        </div>
+      </div>`;
+    }
+    return html;
+  },
 };
+
+// ─── linear algebra helper: solve 3x3 via Cramer ───
+function solve3x3(M, v) {
+  const det = (m) =>
+    m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+   -m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+   +m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+  const D = det(M);
+  if (Math.abs(D) < 1e-12) return null;
+  const col = (i) => M.map((r, ri) => r.map((c, ci) => ci === i ? v[ri] : c));
+  return [det(col(0))/D, det(col(1))/D, det(col(2))/D];
+}
+
+// ─── 2D heatmap (Nadaraya-Watson Gaussian kernel) for 2 varying parameters ───
+function build2DHeatmap(kx, ky, enriched, t) {
+  const pts = enriched.map(e => ({ x: +e.params[kx], y: +e.params[ky], z: e.gp, name: e.name, color: e.color }));
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+  const xR = (xMax - xMin) || 1, yR = (yMax - yMin) || 1;
+  const xLo = xMin - xR*0.15, xHi = xMax + xR*0.15;
+  const yLo = yMin - yR*0.15, yHi = yMax + yR*0.15;
+  // bandwidth ~ 1/3 of range (heuristic)
+  const hx = (xHi - xLo) / 3, hy = (yHi - yLo) / 3;
+  const W = 600, H = 360, ML = 56, MR = 18, MT = 18, MB = 42;
+  const NX = 40, NY = 26;
+  // build grid
+  const grid = [];
+  let gMin = Infinity, gMax = -Infinity, bestZ = -Infinity, bestX = 0, bestY = 0;
+  for (let j = 0; j < NY; j++) {
+    const row = [];
+    const yv = yLo + (yHi - yLo) * j / (NY - 1);
+    for (let i = 0; i < NX; i++) {
+      const xv = xLo + (xHi - xLo) * i / (NX - 1);
+      let num = 0, den = 0;
+      for (const p of pts) {
+        const dx = (p.x - xv) / hx, dy = (p.y - yv) / hy;
+        const w = Math.exp(-0.5 * (dx*dx + dy*dy));
+        num += w * p.z; den += w;
+      }
+      const z = den > 0 ? num / den : 0;
+      row.push(z);
+      if (z < gMin) gMin = z;
+      if (z > gMax) gMax = z;
+      if (z > bestZ) { bestZ = z; bestX = xv; bestY = yv; }
+    }
+    grid.push(row);
+  }
+  const px = x => ML + (x - xLo) / (xHi - xLo) * (W - ML - MR);
+  const py = y => H - MB - (y - yLo) / (yHi - yLo) * (H - MT - MB);
+  const cellW = (W - ML - MR) / NX, cellH = (H - MT - MB) / NY;
+  const colorOf = z => {
+    const u = (gMax > gMin) ? (z - gMin) / (gMax - gMin) : 0.5;
+    // viridis-ish: dark blue → cyan → green → yellow
+    const hue = 240 - 180 * u;
+    const sat = 70 + 25 * u, lt = 18 + 35 * u;
+    return `hsl(${hue},${sat}%,${lt}%)`;
+  };
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:rgba(0,0,0,.45);border:1px solid #1a3a5a;display:block">`;
+  // heatmap cells
+  for (let j = 0; j < NY; j++) {
+    for (let i = 0; i < NX; i++) {
+      const xv = xLo + (xHi - xLo) * i / (NX - 1);
+      const yv = yLo + (yHi - yLo) * j / (NY - 1);
+      svg += `<rect x="${(px(xv)-cellW/2).toFixed(1)}" y="${(py(yv)-cellH/2).toFixed(1)}" width="${(cellW+0.5).toFixed(1)}" height="${(cellH+0.5).toFixed(1)}" fill="${colorOf(grid[j][i])}"/>`;
+    }
+  }
+  // axes
+  svg += `<rect x="${ML}" y="${MT}" width="${W-ML-MR}" height="${H-MT-MB}" fill="none" stroke="#3a6a8a"/>`;
+  for (let i = 0; i <= 4; i++) {
+    const xv = xLo + (xHi - xLo) * i / 4, x = px(xv);
+    svg += `<text x="${x}" y="${H-MB+14}" fill="#9fcfb5" font-size="9" text-anchor="middle" font-family="Share Tech Mono">${(+xv.toFixed(3))}</text>`;
+    const yv = yLo + (yHi - yLo) * i / 4, y = py(yv);
+    svg += `<text x="${ML-6}" y="${y+3}" fill="#9fcfb5" font-size="9" text-anchor="end" font-family="Share Tech Mono">${(+yv.toFixed(3))}</text>`;
+  }
+  svg += `<text x="${(ML+W-MR)/2}" y="${H-6}" fill="#9fcfb5" font-size="11" text-anchor="middle" font-family="Orbitron" letter-spacing="2">${kx.toUpperCase()}</text>`;
+  svg += `<text x="14" y="${(MT+H-MB)/2}" fill="#9fcfb5" font-size="11" text-anchor="middle" font-family="Orbitron" letter-spacing="2" transform="rotate(-90 14 ${(MT+H-MB)/2})">${ky.toUpperCase()}</text>`;
+  // sample points
+  pts.forEach(p => {
+    const x = px(p.x), y = py(p.y);
+    svg += `<circle cx="${x}" cy="${y}" r="6" fill="${p.color}" stroke="#000" stroke-width="1.5"/>`;
+    svg += `<text x="${x+8}" y="${y-6}" fill="#fff" font-size="9" font-family="Share Tech Mono">${p.z.toFixed(0)}%</text>`;
+  });
+  // best (kernel-smoothed) marker
+  const bx = px(bestX), by = py(bestY);
+  svg += `<circle cx="${bx}" cy="${by}" r="10" fill="none" stroke="#00ff88" stroke-width="2.5"/>`;
+  svg += `<line x1="${bx-14}" x2="${bx+14}" y1="${by}" y2="${by}" stroke="#00ff88" stroke-width="1.5"/>`;
+  svg += `<line x1="${bx}" x2="${bx}" y1="${by-14}" y2="${by+14}" stroke="#00ff88" stroke-width="1.5"/>`;
+  svg += `<text x="${bx+14}" y="${by-12}" fill="#00ff88" font-size="11" font-family="Share Tech Mono">★ ${(+bestX.toFixed(3))}, ${(+bestY.toFixed(3))} → ${bestZ.toFixed(0)}%</text>`;
+  // colorbar
+  const cbX = W - MR - 12, cbW = 10, cbY0 = MT, cbY1 = H - MB;
+  for (let i = 0; i < 40; i++) {
+    const z = gMin + (gMax - gMin) * (1 - i / 39);
+    const y0 = cbY0 + (cbY1 - cbY0) * i / 40;
+    svg += `<rect x="${cbX}" y="${y0.toFixed(1)}" width="${cbW}" height="${((cbY1-cbY0)/40+0.5).toFixed(1)}" fill="${colorOf(z)}"/>`;
+  }
+  svg += `<text x="${cbX-2}" y="${cbY0+8}" fill="#9fcfb5" font-size="9" text-anchor="end">${gMax.toFixed(0)}%</text>`;
+  svg += `<text x="${cbX-2}" y="${cbY1}" fill="#9fcfb5" font-size="9" text-anchor="end">${gMin.toFixed(0)}%</text>`;
+  svg += '</svg>';
+  const head = t(`■ 2D HEATMAP — ${kx.toUpperCase()} × ${ky.toUpperCase()} → 緑帯滞在 (Gauss カーネル平滑)`,
+                 `■ 2D HEATMAP — ${kx.toUpperCase()} × ${ky.toUpperCase()} → green stay (Gaussian kernel smoothing)`);
+  const note = t(
+    `★ カーネル予測ピーク: <b>${kx}=${(+bestX.toFixed(3))}, ${ky}=${(+bestY.toFixed(3))}</b> → 推定 GREEN ≈ <b>${bestZ.toFixed(0)}%</b>`,
+    `★ Kernel-predicted peak: <b>${kx}=${(+bestX.toFixed(3))}, ${ky}=${(+bestY.toFixed(3))}</b> → estimated GREEN ≈ <b>${bestZ.toFixed(0)}%</b>`
+  );
+  return `<div style="margin:18px 0 6px;font-family:Orbitron;color:var(--cyan);letter-spacing:2px;font-size:12px">${head}</div>
+    ${svg}
+    <div class="sec ok" style="margin-top:6px">${note}</div>`;
+}
 
 // option toggles → rebuild
 ['optAlimBand', 'optNormalize', 'optSmooth'].forEach(id => {
