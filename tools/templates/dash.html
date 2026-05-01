@@ -93,29 +93,62 @@ td .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-
 .aresult .bar .fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple))}
 .aresult .bar .lbl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;text-shadow:0 0 4px #000}
 .aresult .mini{display:block;width:100%;height:120px;margin-top:6px}
+
+/* i18n */
+body.lang-jp [data-en]{display:none}
+body.lang-en [data-jp]{display:none}
+.lang-toggle{display:inline-flex;border:1px solid var(--cyan);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);overflow:hidden;margin-right:10px}
+.lang-toggle button{background:transparent;border:none;color:var(--cyan);padding:5px 12px;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:2px;font-weight:700;cursor:pointer;border-right:1px solid var(--cyan-d)}
+.lang-toggle button:last-child{border-right:none}
+.lang-toggle button.active{background:var(--cyan);color:#000;text-shadow:0 0 6px #fff}
+.lang-toggle button:hover:not(.active){background:rgba(0,229,255,.15)}
+
+/* Copilot welcome overlay */
+#copilotWelcome{position:fixed;inset:0;z-index:9999;background:radial-gradient(circle at center,rgba(177,75,255,.3),rgba(0,0,0,.95) 70%);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;backdrop-filter:blur(4px);animation:welcomeFade .4s ease,welcomeOut .5s 1.4s forwards}
+#copilotWelcome img{width:240px;height:240px;object-fit:contain;filter:drop-shadow(0 0 30px var(--purple)) drop-shadow(0 0 60px var(--cyan));animation:welcomePop .7s cubic-bezier(.2,1.6,.4,1)}
+#copilotWelcome .ititle{font-family:Orbitron,sans-serif;color:var(--cyan);font-size:24px;letter-spacing:6px;text-shadow:0 0 14px var(--cyan)}
+#copilotWelcome .isub{font-family:'Share Tech Mono',monospace;color:var(--amber);font-size:12px;letter-spacing:3px}
+@keyframes welcomeFade{from{opacity:0}}
+@keyframes welcomePop{from{transform:scale(.4) rotate(-20deg);opacity:0}}
+@keyframes welcomeOut{to{opacity:0;visibility:hidden}}
+#copilotWelcome.gone{display:none}
 </style>
 </head>
-<body>
+<body class="lang-en">
+
+<!-- Copilot welcome animation on dash entry -->
+<div id="copilotWelcome">
+  <img src="/assets/copilot.gif" alt="Copilot">
+  <div class="ititle"><span data-en="ANALYTICS READY" data-jp="解析準備完了"></span></div>
+  <div class="isub"><span data-en="COPILOT IS HERE TO HELP" data-jp="Copilot がサポートします"></span></div>
+</div>
+
 <header>
   <div class="brand">
     <img src="/assets/github-mark.png" class="octocat" alt="Octocat">
-    <h1>IPS ANALYTICS<span class="sub">SESSION DATA INSPECTOR</span></h1>
+    <h1><span data-en="IPS ANALYTICS" data-jp="IPS 解析"></span><span class="sub" data-en="SESSION DATA INSPECTOR" data-jp="セッションデータ解析"></span></h1>
   </div>
-  <div class="nav"><a href="/">◀ TUNING UI</a></div>
+  <div class="nav">
+    <span class="lang-toggle">
+      <button id="langJp" type="button" onclick="setLang('jp')">JP</button>
+      <button id="langEn" type="button" onclick="setLang('en')" class="active">EN</button>
+    </span>
+    <a href="/"><span data-en="&lt; TUNING UI" data-jp="&lt; 調整画面"></span></a>
+  </div>
 </header>
 
 <div class="layout">
   <!-- LEFT: session list + controls -->
   <div>
     <div class="panel">
-      <div class="panel-h"><span>▶ TEST ARCHIVE</span><span class="tag" id="selCount">0/4</span></div>
+      <div class="panel-h"><span data-en="TEST ARCHIVE" data-jp="記録一覧"></span><span class="tag" id="selCount">0/4</span></div>
       <div class="session-list" id="sessions"></div>
       <div class="controls">
-        <label><input type="checkbox" id="optAlimBand" checked> show ±alim band</label>
-        <label><input type="checkbox" id="optNormalize"> normalize time (start at 0s)</label>
-        <label><input type="checkbox" id="optSmooth"> smooth lines</label>
-        <button class="btn amber" onclick="clearSel()">CLEAR SELECTION</button>
-        <button class="btn" onclick="loadAll()">↻ RELOAD</button>
+        <label><input type="checkbox" id="optAlimBand" checked> <span data-en="show ±alim band" data-jp="±alim 帯を表示"></span></label>
+        <label><input type="checkbox" id="optNormalize"> <span data-en="normalize time (start at 0s)" data-jp="時刻を 0s 始点に正規化"></span></label>
+        <label><input type="checkbox" id="optSmooth"> <span data-en="smooth lines" data-jp="スムージング"></span></label>
+        <button class="btn amber" onclick="clearSel()"><span data-en="CLEAR SELECTION" data-jp="選択クリア"></span></button>
+        <button class="btn" onclick="loadAll()"><span data-en="RELOAD" data-jp="再読込"></span></button>
       </div>
     </div>
   </div>
@@ -123,32 +156,32 @@ td .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-
   <!-- RIGHT: charts + tables -->
   <div>
     <div class="panel">
-      <div class="panel-h"><span>▶ KEY METRICS</span><span class="tag" id="kpiHint">SELECT 1+ SESSIONS</span></div>
+      <div class="panel-h"><span data-en="KEY METRICS" data-jp="主要指標"></span><span class="tag" id="kpiHint">SELECT 1+ SESSIONS</span></div>
       <div class="kpi-grid" id="kpis"></div>
     </div>
 
     <div class="spacer"></div>
 
     <div class="panel">
-      <div class="panel-h"><span>▶ ANALYSIS / 解析</span><span class="tag" id="aHint">SELECT 1+ SESSIONS</span></div>
+      <div class="panel-h"><span data-en="ANALYSIS" data-jp="解析"></span><span class="tag" id="aHint">SELECT 1+ SESSIONS</span></div>
       <div class="analyze-bar">
-        <button class="abtn" onclick="runAnalysis('cause')"><span class="icon">🎯</span><span class="ttl">FALL CAUSE</span><span class="desc">なぜ倒れた？原因推定</span></button>
-        <button class="abtn" onclick="runAnalysis('symmetry')"><span class="icon">⚖</span><span class="ttl">SYMMETRY</span><span class="desc">前後応答の非対称性</span></button>
-        <button class="abtn" onclick="runAnalysis('response')"><span class="icon">⚡</span><span class="ttl">RESPONSIVENESS</span><span class="desc">大角度からの回復速度</span></button>
-        <button class="abtn" onclick="runAnalysis('saturation')"><span class="icon">🔥</span><span class="ttl">SATURATION</span><span class="desc">PWM飽和率と影響</span></button>
-        <button class="abtn" onclick="runAnalysis('fft')"><span class="icon">🌊</span><span class="ttl">OSCILLATION FFT</span><span class="desc">振動の主周波数</span></button>
-        <button class="abtn" onclick="runAnalysis('contrib')"><span class="icon">📊</span><span class="ttl">P/D CONTRIB</span><span class="desc">P項とD項の寄与度</span></button>
-        <button class="abtn" onclick="runAnalysis('suggest')"><span class="icon">🤖</span><span class="ttl">SUGGEST PARAMS</span><span class="desc">次に試すパラメータ</span></button>
+        <button class="abtn" onclick="runAnalysis('cause')"><span class="ttl"><span data-en="FALL CAUSE" data-jp="落下原因"></span></span><span class="desc" data-en="why did it fall?" data-jp="なぜ倒れた？"></span></button>
+        <button class="abtn" onclick="runAnalysis('symmetry')"><span class="ttl"><span data-en="SYMMETRY" data-jp="前後対称性"></span></span><span class="desc" data-en="forward vs backward response" data-jp="前後応答の非対称性"></span></button>
+        <button class="abtn" onclick="runAnalysis('response')"><span class="ttl"><span data-en="RESPONSIVENESS" data-jp="応答性"></span></span><span class="desc" data-en="recovery from large angle" data-jp="大角度からの回復速度"></span></button>
+        <button class="abtn" onclick="runAnalysis('saturation')"><span class="ttl"><span data-en="SATURATION" data-jp="飽和率"></span></span><span class="desc" data-en="PWM saturation analysis" data-jp="PWM飽和率と影響"></span></button>
+        <button class="abtn" onclick="runAnalysis('fft')"><span class="ttl"><span data-en="OSCILLATION FFT" data-jp="振動スペクトル"></span></span><span class="desc" data-en="dominant frequencies" data-jp="振動の主周波数"></span></button>
+        <button class="abtn" onclick="runAnalysis('contrib')"><span class="ttl"><span data-en="P/D CONTRIB" data-jp="P/D寄与度"></span></span><span class="desc" data-en="P vs D term contribution" data-jp="P項とD項の寄与度"></span></button>
+        <button class="abtn" onclick="runAnalysis('suggest')"><span class="ttl"><span data-en="SUGGEST PARAMS" data-jp="次の設定案"></span></span><span class="desc" data-en="next params to try" data-jp="次に試すパラメータ"></span></button>
       </div>
       <div class="aresult" id="aResult">
-        <div class="empty">┃ pick an analysis above ┃</div>
+        <div class="empty"><span data-en="pick an analysis above" data-jp="上のボタンから解析を選択"></span></div>
       </div>
     </div>
 
     <div class="spacer"></div>
 
     <div class="panel">
-      <div class="panel-h"><span>▶ TIME SERIES</span><span class="tag">CHART.JS</span></div>
+      <div class="panel-h"><span data-en="TIME SERIES" data-jp="時系列グラフ"></span><span class="tag">CHART.JS</span></div>
       <div id="chartsHost">
         <div class="empty" id="emptyMsg">┃ NO SESSION SELECTED — pick from the archive on the left ┃</div>
         <div class="charts" id="chartsGrid" style="display:none">
@@ -163,15 +196,15 @@ td .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-
     <div class="spacer"></div>
 
     <div class="panel">
-      <div class="panel-h"><span>▶ STATS &amp; PARAMS</span><span class="tag">DIFF HIGHLIGHT</span></div>
-      <div id="tableHost"><div class="empty">no data</div></div>
+      <div class="panel-h"><span data-en="STATS &amp; PARAMS" data-jp="統計とパラメータ"></span><span class="tag" data-en="DIFF HIGHLIGHT" data-jp="差分強調"></span></div>
+      <div id="tableHost"><div class="empty"><span data-en="no data" data-jp="データなし"></span></div></div>
     </div>
 
     <div class="spacer"></div>
 
     <div class="panel">
-      <div class="panel-h"><span>▶ COPILOT DIAGNOSTIC</span><span class="tag">AUTO ANALYSIS</span></div>
-      <div id="diagHost"><div class="empty">no data</div></div>
+      <div class="panel-h"><span data-en="COPILOT DIAGNOSTIC" data-jp="Copilot 自動診断"></span><span class="tag" data-en="AUTO ANALYSIS" data-jp="自動分析"></span></div>
+      <div id="diagHost"><div class="empty"><span data-en="no data" data-jp="データなし"></span></div></div>
     </div>
   </div>
 </div>
@@ -754,6 +787,56 @@ const ANALYZERS = {
 });
 
 loadAll();
+
+// ═══ i18n + welcome + toast ═══
+function setLang(lang) {
+  if (lang !== 'jp' && lang !== 'en') lang = 'en';
+  document.body.classList.toggle('lang-jp', lang === 'jp');
+  document.body.classList.toggle('lang-en', lang === 'en');
+  document.getElementById('langJp').classList.toggle('active', lang === 'jp');
+  document.getElementById('langEn').classList.toggle('active', lang === 'en');
+  try { localStorage.setItem('lang', lang); } catch (e) {}
+  toast('info', 'duck', lang === 'jp' ? '言語: 日本語モード' : 'LANGUAGE: ENGLISH MODE');
+}
+(function initLang() {
+  let saved = 'en';
+  try { saved = localStorage.getItem('lang') || 'en'; } catch (e) {}
+  if (saved !== 'jp' && saved !== 'en') saved = 'en';
+  document.body.classList.toggle('lang-jp', saved === 'jp');
+  document.body.classList.toggle('lang-en', saved === 'en');
+  document.getElementById('langJp').classList.toggle('active', saved === 'jp');
+  document.getElementById('langEn').classList.toggle('active', saved === 'en');
+})();
+
+const MASCOT_FILE = { mona: 'mascot.gif', copilot: 'copilot.gif', duck: 'duck.gif', octocat: 'github-mark.png' };
+function ensureToastHost() {
+  let h = document.getElementById('toasts');
+  if (!h) {
+    h = document.createElement('div');
+    h.id = 'toasts';
+    h.style.cssText = 'position:fixed;top:80px;right:14px;z-index:9998;display:flex;flex-direction:column;gap:8px;pointer-events:none';
+    document.body.appendChild(h);
+  }
+  return h;
+}
+function toast(type, mascot, msg) {
+  const host = ensureToastHost();
+  const t = document.createElement('div');
+  const colors = { success: '#00ff88', error: '#ff3344', info: '#ffb000' };
+  const c = colors[type] || '#00e5ff';
+  t.style.cssText = `display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,16,32,.95);border:1px solid ${c};color:${c};min-width:200px;max-width:340px;box-shadow:0 0 18px ${c}66;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);font-size:12px;font-family:'Share Tech Mono',monospace;transition:opacity .35s,transform .35s`;
+  const file = MASCOT_FILE[mascot] || MASCOT_FILE.copilot;
+  t.innerHTML = `<img src="/assets/${file}" style="width:42px;height:42px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 8px ${c})"><span>${msg}</span>`;
+  host.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; }, 3500);
+  setTimeout(() => { t.remove(); }, 4200);
+}
+
+// dismiss Copilot welcome after animation completes
+setTimeout(() => {
+  const w = document.getElementById('copilotWelcome');
+  if (w) w.classList.add('gone');
+}, 2000);
 </script>
 </body>
 </html>

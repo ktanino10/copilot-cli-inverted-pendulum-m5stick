@@ -258,6 +258,72 @@
   .diag-mascot{float:right;width:64px;height:64px;object-fit:contain;
     margin-left:10px;filter:drop-shadow(0 0 10px currentColor)}
 
+  /* i18n: hide language-specific elements based on body class */
+  body.lang-jp [data-en]{display:none}
+  body.lang-en [data-jp]{display:none}
+
+  /* language toggle button group */
+  .lang-toggle{display:inline-flex;border:1px solid var(--cyan);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);overflow:hidden}
+  .lang-toggle button{
+    background:transparent;border:none;color:var(--cyan);padding:5px 12px;
+    font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;font-weight:700;
+    cursor:pointer;transition:all .15s;border-right:1px solid var(--cyan-d)
+  }
+  .lang-toggle button:last-child{border-right:none}
+  .lang-toggle button.active{background:var(--cyan);color:#000;text-shadow:0 0 6px #fff}
+  .lang-toggle button:hover:not(.active){background:rgba(0,229,255,.15)}
+
+  /* Mona dynamic widget — animation-duration set via JS */
+  .mona-widget{
+    --mona-dur:4s;
+    position:relative;width:54px;height:54px;flex-shrink:0;
+    animation:monaIdle var(--mona-dur) ease-in-out infinite;
+    filter:drop-shadow(0 0 6px var(--cyan));
+  }
+  .mona-widget img{width:100%;height:100%;object-fit:contain;display:block}
+  .mona-widget .ring{
+    position:absolute;inset:-4px;border:1px solid var(--cyan);border-radius:50%;
+    opacity:.4;animation:monaRing var(--mona-dur) ease-out infinite;
+  }
+  .mona-widget.warn{filter:drop-shadow(0 0 8px var(--amber))}
+  .mona-widget.warn .ring{border-color:var(--amber)}
+  .mona-widget.crit{filter:drop-shadow(0 0 12px var(--red))}
+  .mona-widget.crit .ring{border-color:var(--red);animation-name:monaRingCrit}
+  @keyframes monaIdle{
+    0%,100%{transform:translateY(0) rotate(-3deg) scale(1)}
+    50%{transform:translateY(-3px) rotate(3deg) scale(1.04)}
+  }
+  @keyframes monaRing{
+    0%{transform:scale(.9);opacity:.6}
+    100%{transform:scale(1.4);opacity:0}
+  }
+  @keyframes monaRingCrit{
+    0%{transform:scale(.85);opacity:1}
+    100%{transform:scale(1.6);opacity:0}
+  }
+  .mona-status{font-size:9px;letter-spacing:1.5px;color:var(--cyan);font-family:'Orbitron',sans-serif;text-align:center;margin-top:4px}
+  .mona-status.warn{color:var(--amber)}
+  .mona-status.crit{color:var(--red);animation:critBlink .3s steps(2) infinite}
+  @keyframes critBlink{50%{opacity:.3}}
+  .mona-cell{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px}
+
+  /* Copilot fullscreen intro overlay (used when navigating to /dash) */
+  #copilotIntro{
+    position:fixed;inset:0;z-index:9999;background:radial-gradient(circle at center,rgba(177,75,255,.25),rgba(0,0,0,.92) 70%);
+    display:none;align-items:center;justify-content:center;flex-direction:column;gap:18px;
+    backdrop-filter:blur(4px);
+  }
+  #copilotIntro.show{display:flex;animation:introFade .4s ease}
+  #copilotIntro img{
+    width:220px;height:220px;object-fit:contain;
+    filter:drop-shadow(0 0 30px var(--purple)) drop-shadow(0 0 60px var(--cyan));
+    animation:introPop .6s cubic-bezier(.2,1.6,.4,1)
+  }
+  #copilotIntro .ititle{font-family:Orbitron,sans-serif;color:var(--cyan);font-size:22px;letter-spacing:6px;text-shadow:0 0 14px var(--cyan)}
+  #copilotIntro .isub{font-family:'Share Tech Mono',monospace;color:var(--amber);font-size:12px;letter-spacing:3px}
+  @keyframes introFade{from{opacity:0}}
+  @keyframes introPop{from{transform:scale(.4) rotate(-20deg);opacity:0}}
+
   /* github mark on boot */
   #boot .gh-boot{width:80px;height:80px;margin-bottom:14px;
     filter:brightness(0) invert(1) drop-shadow(0 0 14px var(--cyan));animation:spin 8s linear infinite}
@@ -279,7 +345,7 @@
     display:flex;align-items:center;justify-content:center;gap:8px}
   .credit img{width:14px;height:14px;filter:brightness(0) invert(1) opacity(.5)}
 </style>
-</head><body>
+</head><body class="lang-en">
 
 <!-- ══════════ BOOT SEQUENCE ══════════ -->
 <div id="boot">
@@ -303,14 +369,25 @@
     <h1>IPS COMMAND<span class="small">INVERTED PENDULUM CONTROL SYSTEM</span></h1>
   </div>
   <div class="top-status">
-    <div class="pip"><div class="led" id="led_link"></div>LINK</div>
-    <div class="pip"><div class="led off" id="led_motor"></div>MOTOR</div>
-    <div class="pip"><div class="led" id="led_pwr"></div>PWR <span id="batt_top" style="color:var(--cyan)">--</span>V</div>
+    <div class="pip"><div class="led" id="led_link"></div><span data-en="LINK" data-jp="接続"></span></div>
+    <div class="pip"><div class="led off" id="led_motor"></div><span data-en="MOTOR" data-jp="モーター"></span></div>
+    <div class="pip"><div class="led" id="led_pwr"></div><span data-en="PWR" data-jp="電源"></span> <span id="batt_top" style="color:var(--cyan)">--</span>V</div>
     <div id="serial">SN:IPS-CTRL-001</div>
-    <a href="/dash" style="color:var(--purple);text-decoration:none;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:2px;padding:4px 10px;border:1px solid var(--purple);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)">📊 ANALYTICS ▶</a>
+    <div class="lang-toggle" role="group" aria-label="language">
+      <button id="langJp" type="button" onclick="setLang('jp')">JP</button>
+      <button id="langEn" type="button" onclick="setLang('en')" class="active">EN</button>
+    </div>
+    <a href="/dash" id="analyticsLink" style="color:var(--purple);text-decoration:none;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:2px;padding:4px 10px;border:1px solid var(--purple);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)"><span data-en="ANALYTICS &gt;" data-jp="解析 &gt;"></span></a>
     <div id="clock">--:--:--</div>
   </div>
 </header>
+
+<!-- Copilot intro overlay (shown when navigating to /dash) -->
+<div id="copilotIntro" aria-hidden="true">
+  <img src="/assets/copilot.gif" alt="Copilot">
+  <div class="ititle"><span data-en="LAUNCHING ANALYTICS" data-jp="解析モード起動中"></span></div>
+  <div class="isub"><span data-en="COPILOT IS PREPARING THE DATA..." data-jp="Copilot がデータを準備しています..."></span></div>
+</div>
 
 <!-- toast notifications -->
 <div id="toasts"></div>
@@ -323,7 +400,7 @@
     <!-- ATTITUDE -->
     <div class="panel">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
-      <div class="panel-h"><span>▶ ATTITUDE / 機体姿勢</span><span class="tag">[ANG-01]</span></div>
+      <div class="panel-h"><span><span data-en="&#9654; ATTITUDE" data-jp="&#9654; 機体姿勢"></span></span><span class="tag">[ANG-01]</span></div>
       <div class="ang-wrap">
         <div class="ang-grid"></div>
         <div class="ang-num ok" id="ang">+00.0°</div>
@@ -334,35 +411,42 @@
         </div>
       </div>
       <div class="meta">
-        <div class="cell"><div class="lbl">PWR OUT</div><div class="val" id="m_pw">---</div></div>
+        <div class="cell"><div class="lbl"><span data-en="PWR OUT" data-jp="出力"></span></div><div class="val" id="m_pw">---</div></div>
         <div class="cell"><div class="lbl">d∠/dt</div><div class="val" id="m_dang">---</div></div>
         <div class="cell"><div class="lbl">P-TERM</div><div class="val" id="m_p">---</div></div>
         <div class="cell"><div class="lbl">D-TERM</div><div class="val" id="m_d">---</div></div>
+        <div class="cell mona-cell">
+          <div class="mona-widget" id="monaWidget" title="Mona — system stability indicator">
+            <div class="ring"></div>
+            <img src="/assets/mascot.gif" alt="Mona">
+          </div>
+          <div class="mona-status" id="monaStatus"><span data-en="STABLE" data-jp="安定"></span></div>
+        </div>
       </div>
       <div class="btnrow">
-        <button class="btn on" onclick="cmd('on')">▶ MOTOR ON</button>
-        <button class="btn off" onclick="cmd('off')">■ MOTOR OFF</button>
-        <button class="btn amber" onclick="cmd('zero')">⊘ CALIB</button>
+        <button class="btn on" onclick="cmd('on')"><span data-en="&#9654; MOTOR ON" data-jp="&#9654; モーター起動"></span></button>
+        <button class="btn off" onclick="cmd('off')"><span data-en="&#9632; MOTOR OFF" data-jp="&#9632; モーター停止"></span></button>
+        <button class="btn amber" onclick="cmd('zero')"><span data-en="&#8856; CALIB" data-jp="&#8856; ゼロ点校正"></span></button>
       </div>
     </div>
 
     <!-- TEST RECORDER -->
     <div class="panel" style="margin-top:10px">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
-      <div class="panel-h"><span>▶ TEST RECORDER / テスト記録</span><span class="badge" id="recBadge"><img src="/assets/copilot.gif" class="copilot-rec" id="copilotRec">STANDBY</span></div>
+      <div class="panel-h"><span><span data-en="&#9654; TEST RECORDER" data-jp="&#9654; テスト記録"></span></span><span class="badge" id="recBadge"><img src="/assets/copilot.gif" class="copilot-rec" id="copilotRec"><span data-en="STANDBY" data-jp="待機"></span></span></div>
       <div class="rec-row">
-        <input id="testName" placeholder="TEST NAME (e.g. KP18_KD05)">
-        <button class="btn purple" id="startBtn" onclick="startTest()">▶ REC</button>
-        <button class="btn off" id="stopBtn" onclick="stopTest()" disabled>⏹ END</button>
+        <input id="testName" placeholder="TEST NAME (e.g. KP18_KD05)" data-en-ph="TEST NAME (e.g. KP18_KD05)" data-jp-ph="テスト名 (例: KP18_KD05)">
+        <button class="btn purple" id="startBtn" onclick="startTest()"><span data-en="&#9654; REC" data-jp="&#9654; 記録開始"></span></button>
+        <button class="btn off" id="stopBtn" onclick="stopTest()" disabled><span data-en="&#9209; END" data-jp="&#9209; 終了"></span></button>
       </div>
       <canvas id="chart" width="600" height="200"></canvas>
-      <div id="recInfo">> NO ACTIVE RECORDING</div>
+      <div id="recInfo">> <span data-en="NO ACTIVE RECORDING" data-jp="記録中ではありません"></span></div>
     </div>
 
     <!-- SYSLOG -->
     <div class="panel" style="margin-top:10px">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
-      <div class="panel-h"><span>▶ SYSTEM LOG / 通信ログ</span><span class="tag">[CONSOLE]</span></div>
+      <div class="panel-h"><span><span data-en="&#9654; SYSTEM LOG" data-jp="&#9654; 通信ログ"></span></span><span class="tag">[CONSOLE]</span></div>
       <div id="log"></div>
     </div>
   </div>
@@ -372,21 +456,21 @@
     <!-- GAINS -->
     <div class="panel">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
-      <div class="panel-h"><span>▶ CONTROL PARAMETERS / 制御変数</span><span class="tag">[PID-MOD]</span></div>
+      <div class="panel-h"><span><span data-en="&#9654; CONTROL PARAMETERS" data-jp="&#9654; 制御変数"></span></span><span class="tag">[PID-MOD]</span></div>
       <div class="sliders" id="sliders"></div>
     </div>
 
     <!-- SESSIONS -->
     <div class="panel" style="margin-top:10px">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
-      <div class="panel-h"><span>▶ TEST ARCHIVE / 記録一覧</span><span class="tag">[MAX 4 SEL]</span></div>
+      <div class="panel-h"><span><span data-en="&#9654; TEST ARCHIVE" data-jp="&#9654; 記録一覧"></span></span><span class="tag">[MAX 4 SEL]</span></div>
       <div class="session-list" id="sessions"></div>
     </div>
 
     <!-- COMPARE -->
     <div class="panel" id="compare" style="margin-top:10px;display:none">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
-      <div class="panel-h"><span>▶ COMPARISON ANALYSIS / 比較解析</span><span class="tag">[CMP]</span></div>
+      <div class="panel-h"><span><span data-en="&#9654; COMPARISON ANALYSIS" data-jp="&#9654; 比較解析"></span></span><span class="tag">[CMP]</span></div>
       <canvas id="compareChart" width="600" height="240"></canvas>
       <div class="legend" id="legend"></div>
       <div class="diag">
@@ -482,6 +566,79 @@ async function cmd(c) {
   } catch (e) { logmsg('✕ ' + e, 'err'); }
 }
 
+// ═══ i18n ═══
+function setLang(lang) {
+  if (lang !== 'jp' && lang !== 'en') lang = 'en';
+  document.body.classList.toggle('lang-jp', lang === 'jp');
+  document.body.classList.toggle('lang-en', lang === 'en');
+  document.getElementById('langJp').classList.toggle('active', lang === 'jp');
+  document.getElementById('langEn').classList.toggle('active', lang === 'en');
+  // update placeholders
+  document.querySelectorAll('[data-en-ph],[data-jp-ph]').forEach(el => {
+    const v = el.dataset[lang + 'Ph']; if (v != null) el.placeholder = v;
+  });
+  try { localStorage.setItem('lang', lang); } catch (e) {}
+  // Ducky toast on language change
+  toast('info', 'duck', lang === 'jp' ? '言語: 日本語モード' : 'LANGUAGE: ENGLISH MODE');
+}
+(function initLang() {
+  let saved = 'en';
+  try { saved = localStorage.getItem('lang') || 'en'; } catch (e) {}
+  // apply silently (no toast on initial load)
+  if (saved !== 'jp' && saved !== 'en') saved = 'en';
+  document.body.classList.toggle('lang-jp', saved === 'jp');
+  document.body.classList.toggle('lang-en', saved === 'en');
+  document.addEventListener('DOMContentLoaded', () => {
+    const jp = document.getElementById('langJp'), en = document.getElementById('langEn');
+    if (jp) jp.classList.toggle('active', saved === 'jp');
+    if (en) en.classList.toggle('active', saved === 'en');
+    document.querySelectorAll('[data-en-ph],[data-jp-ph]').forEach(el => {
+      const v = el.dataset[saved + 'Ph']; if (v != null) el.placeholder = v;
+    });
+  });
+})();
+
+// ═══ Mona dynamic widget ═══
+//   |angle| < 5°: STABLE (slow gentle float)
+//   |angle| 5-15°: WOBBLE (faster bounce)
+//   |angle| >= 15° OR |dangle| > 80: CRITICAL (rapid shake — falling moment)
+function updateMona(angle, dangle, motorOn) {
+  const w = document.getElementById('monaWidget');
+  const s = document.getElementById('monaStatus');
+  if (!w || !s) return;
+  const ab = Math.abs(angle);
+  const dab = Math.abs(dangle);
+  let state, dur, label;
+  if (!motorOn) {
+    state = ''; dur = '5s'; label = { en: 'IDLE', jp: '停止中' };
+  } else if (ab >= 15 || dab > 80) {
+    state = 'crit'; dur = '0.18s'; label = { en: 'FALLING!', jp: '転倒中!' };
+  } else if (ab >= 5 || dab > 30) {
+    state = 'warn'; dur = '0.9s'; label = { en: 'WOBBLE', jp: '不安定' };
+  } else {
+    state = ''; dur = '4s'; label = { en: 'STABLE', jp: '安定' };
+  }
+  w.className = 'mona-widget' + (state ? ' ' + state : '');
+  w.style.setProperty('--mona-dur', dur);
+  s.className = 'mona-status' + (state ? ' ' + state : '');
+  s.innerHTML = `<span data-en="${label.en}" data-jp="${label.jp}"></span>`;
+}
+
+// ═══ Analytics intro overlay ═══
+(function hookAnalytics() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const a = document.getElementById('analyticsLink');
+    if (!a) return;
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const href = a.getAttribute('href');
+      const ov = document.getElementById('copilotIntro');
+      ov.classList.add('show');
+      setTimeout(() => { window.location.href = href; }, 850);
+    });
+  });
+})();
+
 // ═══ Status ═══
 let lastStatus = null;
 async function fetchStatus() {
@@ -503,6 +660,7 @@ async function fetchStatus() {
     document.getElementById('m_d').textContent = (j.d_term || 0).toFixed(0);
     document.getElementById('batt_top').textContent = (j.batt || 0).toFixed(2);
     document.getElementById('led_motor').className = 'led ' + (j.on ? '' : 'off');
+    updateMona(a, j.dangle || 0, !!j.on);
     PARAMS.forEach(([k]) => {
       if (k in j && document.activeElement !== refs[k].r && document.activeElement !== refs[k].n) {
         refs[k].r.value = j[k]; refs[k].n.value = j[k];
