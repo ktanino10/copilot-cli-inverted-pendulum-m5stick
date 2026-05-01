@@ -472,7 +472,7 @@
 <div id="boot">
   <img src="/assets/github-mark.png" class="gh-boot" alt="GitHub">
   <h2>IPS COMMAND</h2>
-  <div class="sub">INVERTED PENDULUM SYSTEM v3.1 · SEED DIAGNOSTIC</div>
+  <div class="sub">INVERTED PENDULUM SYSTEM v3.1 · STARTUP DIAGNOSTIC</div>
   <pre id="bootlog"></pre>
   <div class="verdict" id="bootVerdict"></div>
   <div class="bar"></div>
@@ -631,10 +631,10 @@
 </div>
 
 <script>
-// ═══ Boot screen: SEED-style live system check ═══
+// ═══ Boot screen: live system-check sequence ═══
 //   Each line types in, then runs a real probe and shows OK/WARN/FAIL.
 //   The screen only dismisses after every check has resolved.
-(function bootSeed() {
+(function bootDiag() {
   const log = document.getElementById('bootlog');
   const verdict = document.getElementById('bootVerdict');
   const root = document.getElementById('boot');
