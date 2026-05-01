@@ -26,6 +26,10 @@ app = Flask(__name__, static_folder=str(ROOT / "templates"), static_url_path="")
 def index():
     return send_from_directory(app.static_folder, "index.html")
 
+@app.route("/dash")
+def dash():
+    return send_from_directory(app.static_folder, "dash.html")
+
 @app.route("/api/s")
 def api_status():
     try:

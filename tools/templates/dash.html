@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>IPS · ANALYTICS DASHBOARD</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --cyan:#00e5ff; --cyan-d:#0091a8; --amber:#ffb000; --red:#ff3344;
+  --green:#00ff88; --purple:#b14bff; --bg:#04070d; --bg2:#0a1220;
+  --panel:#0e1828; --panel-l:#142238; --grid:#1c3050; --text:#cfe8ff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:radial-gradient(circle at 30% 20%, #0a1830 0%, #04070d 60%);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh}
+body{padding:14px 20px 60px}
+header{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border:1px solid var(--grid);background:linear-gradient(90deg,#0a1828,#0e1828);clip-path:polygon(20px 0,100% 0,100% calc(100% - 12px),calc(100% - 20px) 100%,0 100%,0 12px);margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:14px}
+.octocat{width:48px;height:48px;filter:brightness(0) invert(1) drop-shadow(0 0 8px var(--cyan)) drop-shadow(0 0 16px var(--cyan-d));animation:float 4s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-3px) rotate(2deg)}}
+h1{font-family:Orbitron,sans-serif;font-weight:900;font-size:22px;color:var(--cyan);letter-spacing:3px;text-shadow:0 0 10px var(--cyan-d)}
+h1 .sub{font-size:12px;color:var(--amber);letter-spacing:2px;display:block;margin-top:2px}
+.nav a{color:var(--amber);text-decoration:none;font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:2px;padding:6px 14px;border:1px solid var(--amber);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);transition:all .2s}
+.nav a:hover{background:var(--amber);color:#000;box-shadow:0 0 12px var(--amber)}
+.layout{display:grid;grid-template-columns:300px 1fr;gap:14px}
+@media(max-width:900px){.layout{grid-template-columns:1fr}}
+.panel{position:relative;background:linear-gradient(135deg,var(--panel) 0%,var(--panel-l) 100%);border:1px solid var(--grid);clip-path:polygon(14px 0,100% 0,100% calc(100% - 10px),calc(100% - 14px) 100%,0 100%,0 10px);padding:14px}
+.panel-h{font-family:Orbitron,sans-serif;color:var(--cyan);font-size:13px;letter-spacing:2px;border-bottom:1px solid var(--grid);padding-bottom:8px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.panel-h .tag{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--amber)}
+.session-list{display:flex;flex-direction:column;gap:6px;max-height:62vh;overflow-y:auto;padding-right:4px}
+.session-list::-webkit-scrollbar{width:6px}
+.session-list::-webkit-scrollbar-track{background:#0a1220}
+.session-list::-webkit-scrollbar-thumb{background:var(--cyan-d);border-radius:3px}
+.srow{display:grid;grid-template-columns:auto 14px 1fr;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--grid);background:rgba(0,0,0,.25);font-size:11px;cursor:pointer;transition:all .15s}
+.srow:hover{border-color:var(--cyan-d);background:rgba(0,229,255,.05)}
+.srow.sel{border-color:var(--cyan);background:rgba(0,229,255,.10);box-shadow:0 0 8px rgba(0,229,255,.3)}
+.srow input{accent-color:var(--cyan);width:14px;height:14px;cursor:pointer}
+.srow .swatch{width:12px;height:12px;border-radius:50%;box-shadow:0 0 4px currentColor}
+.srow .meta{display:flex;flex-direction:column;gap:2px;min-width:0;overflow:hidden}
+.srow .name{color:var(--cyan);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .info{color:#7fa0c0;font-size:10px;display:flex;gap:8px;flex-wrap:wrap}
+.srow .info .ok{color:var(--green)} .srow .info .bad{color:var(--red)} .srow .info .warn{color:var(--amber)}
+.srow .out{font-size:14px}
+.controls{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.controls label{display:flex;align-items:center;gap:6px;font-size:11px;color:#a8c8e8;cursor:pointer}
+.controls input[type=checkbox]{accent-color:var(--cyan)}
+.btn{font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:2px;padding:6px 10px;border:1px solid var(--cyan);background:transparent;color:var(--cyan);cursor:pointer;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);transition:all .15s}
+.btn:hover{background:var(--cyan);color:#000;box-shadow:0 0 10px var(--cyan)}
+.btn.amber{border-color:var(--amber);color:var(--amber)} .btn.amber:hover{background:var(--amber);color:#000}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:1100px){.charts{grid-template-columns:1fr}}
+.chart-wrap{position:relative;height:280px}
+.empty{padding:30px;text-align:center;color:#5a7090;font-size:13px;letter-spacing:1px}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:14px}
+.kpi{padding:10px 12px;background:rgba(0,0,0,.3);border:1px solid var(--grid);clip-path:polygon(8px 0,100% 0,100% calc(100% - 6px),calc(100% - 8px) 100%,0 100%,0 6px)}
+.kpi .lbl{font-size:9px;color:var(--amber);letter-spacing:2px;font-family:Orbitron,sans-serif}
+.kpi .val{font-size:18px;color:var(--cyan);font-weight:700;margin-top:2px}
+.kpi .sub{font-size:10px;color:#7fa0c0;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th,td{padding:5px 8px;border:1px solid var(--grid);text-align:left}
+th{background:rgba(0,229,255,.08);color:var(--cyan);font-family:Orbitron,sans-serif;letter-spacing:1px;font-size:10px;text-transform:uppercase}
+td.diff{background:rgba(255,176,0,.12);color:var(--amber);font-weight:700}
+td .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle;box-shadow:0 0 4px currentColor}
+.diag{margin-top:14px;padding:12px;border:1px dashed var(--amber);background:rgba(255,176,0,.04);font-size:12px;line-height:1.7}
+.diag h3{font-family:Orbitron,sans-serif;color:var(--amber);font-size:12px;letter-spacing:2px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.diag h3 img{width:28px;height:28px;filter:drop-shadow(0 0 6px var(--amber))}
+.diag .item{padding:4px 0;border-bottom:1px dotted #2a3850}
+.diag .item:last-child{border-bottom:none}
+.diag .verdict{color:var(--green);font-weight:700}
+.diag .warn{color:var(--amber);font-weight:700}
+.diag .err{color:var(--red);font-weight:700}
+.spacer{height:14px}
+.analyze-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:12px}
+.abtn{font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:1.5px;padding:10px 12px;border:1px solid var(--purple);background:rgba(177,75,255,.08);color:#e0c8ff;cursor:pointer;text-align:left;clip-path:polygon(8px 0,100% 0,100% calc(100% - 6px),calc(100% - 8px) 100%,0 100%,0 6px);transition:all .15s;display:flex;flex-direction:column;gap:3px}
+.abtn:hover{background:var(--purple);color:#000;box-shadow:0 0 12px var(--purple);transform:translateY(-1px)}
+.abtn .icon{font-size:18px}
+.abtn .ttl{font-weight:700}
+.abtn .desc{font-family:'Share Tech Mono',monospace;font-size:9px;opacity:.75;letter-spacing:1px}
+.aresult{padding:14px;border:1px solid var(--purple);background:rgba(0,0,0,.3);clip-path:polygon(10px 0,100% 0,100% calc(100% - 8px),calc(100% - 10px) 100%,0 100%,0 8px);min-height:100px}
+.aresult h3{font-family:Orbitron,sans-serif;color:var(--purple);font-size:14px;letter-spacing:2px;margin-bottom:10px;border-bottom:1px solid #2a2050;padding-bottom:6px}
+.aresult .sec{margin:10px 0;padding:8px 10px;background:rgba(0,229,255,.04);border-left:3px solid var(--cyan);font-size:12px;line-height:1.6}
+.aresult .sec.ok{border-left-color:var(--green);background:rgba(0,255,136,.05)}
+.aresult .sec.warn{border-left-color:var(--amber);background:rgba(255,176,0,.06)}
+.aresult .sec.err{border-left-color:var(--red);background:rgba(255,51,68,.06)}
+.aresult .sec b{color:var(--cyan)}
+.aresult .sec.ok b{color:var(--green)}
+.aresult .sec.warn b{color:var(--amber)}
+.aresult .sec.err b{color:var(--red)}
+.aresult .verdict{margin-top:12px;padding:12px;background:linear-gradient(90deg,rgba(177,75,255,.15),rgba(0,229,255,.05));border:1px dashed var(--purple);font-size:13px;line-height:1.7}
+.aresult .verdict h4{color:var(--purple);font-family:Orbitron,sans-serif;letter-spacing:2px;font-size:11px;margin-bottom:6px}
+.aresult .bar{height:14px;background:#0a1828;position:relative;border:1px solid var(--grid);margin:4px 0}
+.aresult .bar .fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple))}
+.aresult .bar .lbl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;text-shadow:0 0 4px #000}
+.aresult .mini{display:block;width:100%;height:120px;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <img src="/assets/github-mark.png" class="octocat" alt="Octocat">
+    <h1>IPS ANALYTICS<span class="sub">SESSION DATA INSPECTOR</span></h1>
+  </div>
+  <div class="nav"><a href="/">◀ TUNING UI</a></div>
+</header>
+
+<div class="layout">
+  <!-- LEFT: session list + controls -->
+  <div>
+    <div class="panel">
+      <div class="panel-h"><span>▶ TEST ARCHIVE</span><span class="tag" id="selCount">0/4</span></div>
+      <div class="session-list" id="sessions"></div>
+      <div class="controls">
+        <label><input type="checkbox" id="optAlimBand" checked> show ±alim band</label>
+        <label><input type="checkbox" id="optNormalize"> normalize time (start at 0s)</label>
+        <label><input type="checkbox" id="optSmooth"> smooth lines</label>
+        <button class="btn amber" onclick="clearSel()">CLEAR SELECTION</button>
+        <button class="btn" onclick="loadAll()">↻ RELOAD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: charts + tables -->
+  <div>
+    <div class="panel">
+      <div class="panel-h"><span>▶ KEY METRICS</span><span class="tag" id="kpiHint">SELECT 1+ SESSIONS</span></div>
+      <div class="kpi-grid" id="kpis"></div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="panel">
+      <div class="panel-h"><span>▶ ANALYSIS / 解析</span><span class="tag" id="aHint">SELECT 1+ SESSIONS</span></div>
+      <div class="analyze-bar">
+        <button class="abtn" onclick="runAnalysis('cause')"><span class="icon">🎯</span><span class="ttl">FALL CAUSE</span><span class="desc">なぜ倒れた？原因推定</span></button>
+        <button class="abtn" onclick="runAnalysis('symmetry')"><span class="icon">⚖</span><span class="ttl">SYMMETRY</span><span class="desc">前後応答の非対称性</span></button>
+        <button class="abtn" onclick="runAnalysis('response')"><span class="icon">⚡</span><span class="ttl">RESPONSIVENESS</span><span class="desc">大角度からの回復速度</span></button>
+        <button class="abtn" onclick="runAnalysis('saturation')"><span class="icon">🔥</span><span class="ttl">SATURATION</span><span class="desc">PWM飽和率と影響</span></button>
+        <button class="abtn" onclick="runAnalysis('fft')"><span class="icon">🌊</span><span class="ttl">OSCILLATION FFT</span><span class="desc">振動の主周波数</span></button>
+        <button class="abtn" onclick="runAnalysis('contrib')"><span class="icon">📊</span><span class="ttl">P/D CONTRIB</span><span class="desc">P項とD項の寄与度</span></button>
+        <button class="abtn" onclick="runAnalysis('suggest')"><span class="icon">🤖</span><span class="ttl">SUGGEST PARAMS</span><span class="desc">次に試すパラメータ</span></button>
+      </div>
+      <div class="aresult" id="aResult">
+        <div class="empty">┃ pick an analysis above ┃</div>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="panel">
+      <div class="panel-h"><span>▶ TIME SERIES</span><span class="tag">CHART.JS</span></div>
+      <div id="chartsHost">
+        <div class="empty" id="emptyMsg">┃ NO SESSION SELECTED — pick from the archive on the left ┃</div>
+        <div class="charts" id="chartsGrid" style="display:none">
+          <div class="chart-wrap"><canvas id="cAngle"></canvas></div>
+          <div class="chart-wrap"><canvas id="cPower"></canvas></div>
+          <div class="chart-wrap"><canvas id="cTerms"></canvas></div>
+          <div class="chart-wrap"><canvas id="cSpeed"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="panel">
+      <div class="panel-h"><span>▶ STATS &amp; PARAMS</span><span class="tag">DIFF HIGHLIGHT</span></div>
+      <div id="tableHost"><div class="empty">no data</div></div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="panel">
+      <div class="panel-h"><span>▶ COPILOT DIAGNOSTIC</span><span class="tag">AUTO ANALYSIS</span></div>
+      <div id="diagHost"><div class="empty">no data</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS = ['#00e5ff', '#ffb000', '#b14bff', '#00ff88'];
+const PARAM_KEYS = ['kp','kd','ki','kspd','ppos','pneg','bias','alim','plim','kpower','minp','po'];
+let allSessions = [];
+let selected = new Map();
+const charts = {};
+
+// ───────────────────────────── data load ─────────────────────────────
+async function loadAll() {
+  const r = await fetch('/api/sessions');
+  allSessions = await r.json();
+  renderList();
+}
+function renderList() {
+  const host = document.getElementById('sessions');
+  if (!allSessions.length) { host.innerHTML = '<div class="empty">no sessions saved yet</div>'; return; }
+  host.innerHTML = '';
+  allSessions.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'srow' + (selected.has(s.id) ? ' sel' : '');
+    const fall = (s.stats && s.stats.fall_dir) || '?';
+    const out = fall === 'standing' ? '🐙' : (s.duration < 2000 ? '🦆' : '🤖');
+    const dur = (s.duration / 1000).toFixed(1) + 's';
+    const maxA = (s.stats && s.stats.max_abs_angle ? s.stats.max_abs_angle.toFixed(1) : '?') + '°';
+    const dt = new Date(s.ts).toLocaleString().slice(5);
+    const swatchColor = selected.has(s.id) ? COLORS[selected.get(s.id).idx] : '#3a5070';
+    row.innerHTML = `
+      <input type="checkbox" ${selected.has(s.id) ? 'checked' : ''}>
+      <span class="swatch" style="color:${swatchColor};background:${swatchColor}"></span>
+      <div class="meta">
+        <div class="name">${out} ${escapeHtml(s.name)}</div>
+        <div class="info">
+          <span>${dt}</span>
+          <span class="${fall === 'standing' ? 'ok' : (s.duration < 2000 ? 'bad' : 'warn')}">${fall}</span>
+          <span>${dur}</span>
+          <span>∠${maxA}</span>
+        </div>
+      </div>`;
+    row.onclick = (e) => {
+      if (e.target.tagName !== 'INPUT') row.querySelector('input').click();
+    };
+    row.querySelector('input').onchange = (e) => {
+      e.stopPropagation();
+      if (e.target.checked) selectSession(s.id);
+      else deselectSession(s.id);
+    };
+    host.appendChild(row);
+  });
+  document.getElementById('selCount').textContent = `${selected.size}/4`;
+}
+async function selectSession(id) {
+  if (selected.size >= 4) {
+    alert('MAX 4 sessions');
+    renderList();
+    return;
+  }
+  const r = await fetch('/api/sessions/' + id);
+  const data = await r.json();
+  // assign first available color slot
+  const used = new Set([...selected.values()].map(v => v.idx));
+  let idx = 0; while (used.has(idx)) idx++;
+  selected.set(id, { idx, data });
+  renderList();
+  rebuild();
+}
+function deselectSession(id) {
+  selected.delete(id);
+  renderList();
+  rebuild();
+}
+function clearSel() { selected.clear(); renderList(); rebuild(); }
+
+// ───────────────────────────── charts ─────────────────────────────
+function tsList(s) {
+  const norm = document.getElementById('optNormalize').checked;
+  const t0 = norm && s.samples.length ? s.samples[0].t : 0;
+  return s.samples.map(p => (p.t - t0) / 1000);
+}
+function buildDataset(label, data, color, smooth) {
+  return {
+    label, data, borderColor: color, backgroundColor: color + '22',
+    borderWidth: 1.6, pointRadius: 0, tension: smooth ? 0.3 : 0,
+    spanGaps: true,
+  };
+}
+function chartOpts(title, yLabel, alimVal) {
+  const opts = {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: 'nearest', intersect: false, axis: 'x' },
+    plugins: {
+      title: { display: true, text: title, color: '#00e5ff', font: { family: 'Orbitron', size: 12, weight: 'bold' } },
+      legend: { labels: { color: '#cfe8ff', font: { family: 'Share Tech Mono', size: 10 } } },
+      tooltip: { backgroundColor: '#0a1828', borderColor: '#00e5ff', borderWidth: 1 },
+    },
+    scales: {
+      x: { type: 'linear', title: { display: true, text: 't [s]', color: '#a8c8e8' },
+           ticks: { color: '#7fa0c0' }, grid: { color: '#1c3050' } },
+      y: { title: { display: true, text: yLabel, color: '#a8c8e8' },
+           ticks: { color: '#7fa0c0' }, grid: { color: '#1c3050' } },
+    },
+  };
+  if (alimVal != null && document.getElementById('optAlimBand').checked) {
+    // draw using annotation via custom plugin: use afterDraw
+    opts.plugins.alimBand = { value: alimVal };
+  }
+  return opts;
+}
+// custom plugin to draw alim band
+const alimBandPlugin = {
+  id: 'alimBand',
+  afterDraw(chart, args, opts) {
+    if (!opts || !opts.value) return;
+    const { ctx, chartArea, scales } = chart;
+    const a = opts.value;
+    const yTop = scales.y.getPixelForValue(a);
+    const yBot = scales.y.getPixelForValue(-a);
+    if (isNaN(yTop) || isNaN(yBot)) return;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,176,0,0.06)';
+    ctx.fillRect(chartArea.left, yTop, chartArea.right - chartArea.left, yBot - yTop);
+    ctx.strokeStyle = 'rgba(255,176,0,0.4)';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(chartArea.left, yTop); ctx.lineTo(chartArea.right, yTop); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(chartArea.left, yBot); ctx.lineTo(chartArea.right, yBot); ctx.stroke();
+    ctx.restore();
+  }
+};
+Chart.register(alimBandPlugin);
+
+function makeChart(canvasId, title, yLabel, fieldKey, alimVal) {
+  const canvas = document.getElementById(canvasId);
+  if (charts[canvasId]) charts[canvasId].destroy();
+  const smooth = document.getElementById('optSmooth').checked;
+  const datasets = [];
+  for (const { idx, data } of selected.values()) {
+    const xs = tsList(data);
+    const ys = data.samples.map(p => p[fieldKey]);
+    const points = xs.map((x, i) => ({ x, y: ys[i] }));
+    datasets.push(buildDataset(data.name, points, COLORS[idx], smooth));
+  }
+  charts[canvasId] = new Chart(canvas, {
+    type: 'line', data: { datasets },
+    options: chartOpts(title, yLabel, alimVal),
+  });
+}
+
+function makeTermsChart() {
+  const canvas = document.getElementById('cTerms');
+  if (charts.cTerms) charts.cTerms.destroy();
+  const smooth = document.getElementById('optSmooth').checked;
+  const datasets = [];
+  for (const { idx, data } of selected.values()) {
+    const xs = tsList(data);
+    const base = COLORS[idx];
+    datasets.push(buildDataset(data.name + ' P', xs.map((x, i) => ({ x, y: data.samples[i].p })), base, smooth));
+    datasets.push({
+      ...buildDataset(data.name + ' D', xs.map((x, i) => ({ x, y: data.samples[i].d })), base, smooth),
+      borderDash: [4, 3],
+    });
+  }
+  charts.cTerms = new Chart(canvas, {
+    type: 'line', data: { datasets },
+    options: chartOpts('P/D TERMS', 'contribution', null),
+  });
+}
+
+function rebuild() {
+  const empty = document.getElementById('emptyMsg');
+  const grid = document.getElementById('chartsGrid');
+  const aHint = document.getElementById('aHint');
+  if (selected.size === 0) {
+    empty.style.display = 'block'; grid.style.display = 'none';
+    document.getElementById('kpis').innerHTML = '';
+    document.getElementById('kpiHint').textContent = 'SELECT 1+ SESSIONS';
+    aHint.textContent = 'SELECT 1+ SESSIONS';
+    document.getElementById('aResult').innerHTML = '<div class="empty">┃ pick an analysis above ┃</div>';
+    document.getElementById('tableHost').innerHTML = '<div class="empty">no data</div>';
+    document.getElementById('diagHost').innerHTML = '<div class="empty">no data</div>';
+    return;
+  }
+  aHint.textContent = `${selected.size} SESSIONS`;
+  empty.style.display = 'none'; grid.style.display = 'grid';
+  // alim from first selected
+  const first = selected.values().next().value;
+  const alim = first.data.params && first.data.params.alim;
+  makeChart('cAngle', 'ANGLE [°]', 'angle', 'angle', alim);
+  makeChart('cPower', 'PWM POWER', 'power', 'power', null);
+  makeTermsChart();
+  makeChart('cSpeed', 'SPEED', 'speed (deg/s)', 'speed', null);
+  rebuildKPIs();
+  rebuildTable();
+  rebuildDiag();
+}
+
+// ───────────────────────────── analytics ─────────────────────────────
+function deriveStats(s) {
+  const samples = s.samples || [];
+  if (!samples.length) return {};
+  const angles = samples.map(p => p.angle);
+  const powers = samples.map(p => Math.abs(p.power));
+  const meanA = angles.reduce((a, b) => a + b, 0) / angles.length;
+  const rms = Math.sqrt(angles.reduce((a, b) => a + (b - meanA) ** 2, 0) / angles.length);
+  const peakP = Math.max(...powers);
+  const plim = (s.params && s.params.plim) || 350;
+  const sat = powers.filter(p => p >= plim * 0.95).length / powers.length * 100;
+  // settling: last index where |angle| > 5°
+  let settle = null;
+  for (let i = samples.length - 1; i >= 0; i--) {
+    if (Math.abs(samples[i].angle) > 5) { settle = samples[i].t; break; }
+  }
+  // time inside ±5°
+  const inBand = samples.filter(p => Math.abs(p.angle) <= 5).length;
+  const dt = (samples[samples.length - 1].t - samples[0].t) || 1;
+  const stableMs = dt * (inBand / samples.length);
+  return {
+    rms_angle: rms, peak_power: peakP, sat_pct: sat, settle_ms: settle,
+    stable_ms: stableMs, mean_angle: meanA,
+  };
+}
+function rebuildKPIs() {
+  const host = document.getElementById('kpis');
+  const items = [...selected.values()].map(v => ({ s: v.data, c: COLORS[v.idx], d: deriveStats(v.data) }));
+  document.getElementById('kpiHint').textContent = `${items.length} SESSIONS`;
+  // build aggregate KPIs with each session's value listed
+  function kpi(label, items, fmt, sub) {
+    const lines = items.map(it => `<span style="color:${it.c}">${fmt(it)}</span>`).join(' / ');
+    return `<div class="kpi"><div class="lbl">${label}</div><div class="val">${lines}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+  }
+  host.innerHTML = [
+    kpi('DURATION', items, it => (it.s.duration / 1000).toFixed(1) + 's', 'longer = better'),
+    kpi('STABLE TIME (±5°)', items, it => (it.d.stable_ms / 1000).toFixed(1) + 's'),
+    kpi('MAX |∠|', items, it => (it.s.stats.max_abs_angle || 0).toFixed(1) + '°'),
+    kpi('RMS ∠', items, it => it.d.rms_angle.toFixed(1) + '°', 'lower = stiller'),
+    kpi('PEAK POWER', items, it => Math.round(it.d.peak_power).toString()),
+    kpi('SAT %', items, it => it.d.sat_pct.toFixed(0) + '%', '|p|≥95% plim'),
+    kpi('OSC FREQ', items, it => (it.s.stats.osc_hz || 0).toFixed(2) + 'Hz'),
+    kpi('FALL DIR', items, it => (it.s.stats.fall_dir || '?').toUpperCase()),
+  ].join('');
+}
+function rebuildTable() {
+  const items = [...selected.values()];
+  // detect which params differ
+  const diffs = new Set();
+  for (const k of PARAM_KEYS) {
+    const vals = items.map(v => (v.data.params || {})[k]);
+    if (new Set(vals.map(String)).size > 1) diffs.add(k);
+  }
+  let html = '<table><thead><tr><th>PARAM</th>';
+  items.forEach(v => { html += `<th><span class="swatch" style="color:${COLORS[v.idx]};background:${COLORS[v.idx]}"></span>${escapeHtml(v.data.name)}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (const k of PARAM_KEYS) {
+    html += `<tr><td><b>${k}</b></td>`;
+    items.forEach(v => {
+      const val = (v.data.params || {})[k];
+      html += `<td class="${diffs.has(k) ? 'diff' : ''}">${val ?? '–'}</td>`;
+    });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('tableHost').innerHTML = html;
+}
+
+function suggest(s, d) {
+  const tips = [];
+  const stats = s.stats || {};
+  const params = s.params || {};
+  if (d.sat_pct > 50) tips.push(['warn', '⚠ POWER SATURATION ' + d.sat_pct.toFixed(0) + '% — consider increasing plim or reducing kp/kspd.']);
+  if (stats.fall_dir === 'backward' && stats.max_abs_angle > 30) tips.push(['warn', '◀ Backward bias — try bias < 0 (e.g. -1.5) or increase pneg.']);
+  if (stats.fall_dir === 'forward' && stats.max_abs_angle > 30) tips.push(['warn', '▶ Forward bias — try bias > 0 or increase ppos.']);
+  if (stats.osc_hz > 4) tips.push(['warn', '〰 High oscillation (' + stats.osc_hz.toFixed(1) + 'Hz) — reduce kp or increase kd.']);
+  if (d.rms_angle < 4 && s.duration > 3000) tips.push(['ok', '✓ Low RMS angle — controller is keeping it close to vertical.']);
+  if (s.duration > 5000 && stats.fall_dir === 'standing') tips.push(['ok', '★ STANDING — promising parameter set.']);
+  if (params.alim < 30 && stats.max_abs_angle > params.alim) tips.push(['warn', '✂ alim=' + params.alim + ' may be cutting recovery; try 40-50.']);
+  if (!tips.length) tips.push(['', 'Stable run — no anomalies flagged.']);
+  return tips;
+}
+function rebuildDiag() {
+  const items = [...selected.values()].map(v => ({ s: v.data, c: COLORS[v.idx], d: deriveStats(v.data) }));
+  // pick lead mascot for header
+  const anyStanding = items.some(it => (it.s.stats || {}).fall_dir === 'standing');
+  const anyQuick = items.some(it => it.s.duration < 2000);
+  const lead = anyStanding ? '/assets/mascot.gif' : (anyQuick ? '/assets/duck.gif' : '/assets/copilot.gif');
+  let html = `<div class="diag"><h3><img src="${lead}" alt="ai">COPILOT AUTO-DIAGNOSTIC</h3>`;
+  items.forEach(it => {
+    html += `<div class="item"><b style="color:${it.c}">${escapeHtml(it.s.name)}</b><br>`;
+    suggest(it.s, it.d).forEach(([cls, txt]) => {
+      html += `<span class="${cls}">　▸ ${txt}</span><br>`;
+    });
+    html += '</div>';
+  });
+  if (items.length >= 2) {
+    const best = items.reduce((a, b) => (a.s.duration > b.s.duration ? a : b));
+    html += `<div class="item verdict">★ BEST DURATION: <b style="color:${best.c}">${escapeHtml(best.s.name)}</b> (${(best.s.duration / 1000).toFixed(1)}s, RMS ${best.d.rms_angle.toFixed(1)}°)</div>`;
+  }
+  html += '</div>';
+  document.getElementById('diagHost').innerHTML = html;
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ───────────────────────────── ANALYSES ─────────────────────────────
+function runAnalysis(type) {
+  const host = document.getElementById('aResult');
+  if (selected.size === 0) { host.innerHTML = '<div class="empty">SELECT A SESSION FIRST</div>'; return; }
+  const items = [...selected.values()].map(v => ({ s: v.data, c: COLORS[v.idx] }));
+  const fn = ANALYZERS[type];
+  if (!fn) return;
+  host.innerHTML = fn(items);
+}
+function sec(cls, html) { return `<div class="sec ${cls}">${html}</div>`; }
+function bar(pct, label) {
+  const p = Math.max(0, Math.min(100, pct));
+  return `<div class="bar"><div class="fill" style="width:${p}%"></div><div class="lbl">${label}</div></div>`;
+}
+function svgSpark(values, color, height = 80, refLine = null) {
+  if (!values.length) return '';
+  const w = 600, h = height, pad = 4;
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = (max - min) || 1;
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
+    const y = h - pad - ((v - min) / span) * (h - 2 * pad);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  let extra = '';
+  if (refLine != null) {
+    const y = h - pad - ((refLine - min) / span) * (h - 2 * pad);
+    extra = `<line x1="${pad}" x2="${w - pad}" y1="${y}" y2="${y}" stroke="rgba(255,176,0,.5)" stroke-dasharray="3,3" stroke-width="1"/>`;
+  }
+  return `<svg class="mini" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <rect x="0" y="0" width="${w}" height="${h}" fill="rgba(0,0,0,.3)"/>
+    ${extra}
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5"/>
+  </svg>`;
+}
+
+const ANALYZERS = {
+  // ───── 1. FALL CAUSE ─────
+  cause(items) {
+    let html = '<h3>🎯 FALL CAUSE ANALYSIS — 落下原因推定</h3>';
+    items.forEach(({ s, c }) => {
+      const samples = s.samples;
+      const stats = s.stats || {};
+      const params = s.params || {};
+      const last = samples[samples.length - 1] || {};
+      const lastN = samples.slice(-Math.min(20, samples.length));
+      const finalAngle = last.angle || 0;
+      const fallDir = stats.fall_dir || (finalAngle > 5 ? 'backward' : (finalAngle < -5 ? 'forward' : 'standing'));
+      const plim = params.plim || 350;
+      const satEnd = lastN.filter(p => Math.abs(p.power) >= plim * 0.95).length / lastN.length;
+      const angleVel = lastN.length > 1 ? (lastN[lastN.length - 1].angle - lastN[0].angle) / ((lastN[lastN.length - 1].t - lastN[0].t) / 1000 || 1) : 0;
+      const maxAbs = stats.max_abs_angle || 0;
+      const oscHz = stats.osc_hz || 0;
+      let cause, cls, fix;
+      if (fallDir === 'standing') {
+        cause = '✓ 倒れていない (STANDING)'; cls = 'ok'; fix = 'このパラメータで継続テスト推奨。';
+      } else if (satEnd > 0.6) {
+        cause = '🔥 PWM飽和で押し負け（最終20点で' + (satEnd * 100).toFixed(0) + '% 飽和）'; cls = 'err';
+        fix = `plim を ${plim} → ${Math.round(plim * 1.2)} へ、または kp を下げて飽和回避。`;
+      } else if (Math.abs(angleVel) > 200) {
+        cause = `⚡ 急速な ${fallDir} 倒れ込み（最終速度 ${angleVel.toFixed(0)}°/s）→ 反応遅延`; cls = 'err';
+        fix = `${fallDir === 'backward' ? 'pneg' : 'ppos'} を増やすか kd を上げて減衰強化。`;
+      } else if (oscHz > 4) {
+        cause = `〰 高周波振動（${oscHz.toFixed(1)}Hz）から ${fallDir} へ崩壊`; cls = 'warn';
+        fix = 'kp を下げて剛性を緩めるか、kd を増やして振動減衰。';
+      } else if (params.alim && maxAbs > params.alim && maxAbs < params.alim * 1.5) {
+        cause = `✂ alim=${params.alim} で制御カットオフ → 復帰不能`; cls = 'warn';
+        fix = `alim を ${params.alim} → ${params.alim + 20} 程度に拡大。`;
+      } else {
+        cause = `▼ ${fallDir} へ緩やかに転倒（最大角 ${maxAbs.toFixed(1)}°）`; cls = 'warn';
+        fix = `${fallDir === 'backward' ? 'bias を負側に / pneg 増' : 'bias を正側に / ppos 増'}。`;
+      }
+      html += sec(cls, `<b style="color:${c}">${escapeHtml(s.name)}</b>　・${cause}<br>　▶ ${fix}`);
+    });
+    return html;
+  },
+
+  // ───── 2. SYMMETRY ─────
+  symmetry(items) {
+    let html = '<h3>⚖ SYMMETRY — 前後応答の非対称性</h3>';
+    items.forEach(({ s, c }) => {
+      const fwdP = [], bwdP = [];
+      s.samples.forEach(p => {
+        if (p.angle > 2) bwdP.push(Math.abs(p.power));
+        else if (p.angle < -2) fwdP.push(Math.abs(p.power));
+      });
+      const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+      const fa = avg(fwdP), ba = avg(bwdP);
+      const ratio = fa > 0 ? ba / fa : 0;
+      const asym = ratio > 1 ? `後傾応答が +${((ratio - 1) * 100).toFixed(0)}% 強い` : `前傾応答が +${((1 / ratio - 1) * 100).toFixed(0)}% 強い`;
+      const cls = (ratio > 0.85 && ratio < 1.18) ? 'ok' : 'warn';
+      const params = s.params || {};
+      const fix = ratio > 1.2 ? `pneg=${params.pneg} を維持、ppos=${params.ppos} を ${(params.ppos * 1.15).toFixed(2)} に上げて前傾応答を強化。`
+                : ratio < 0.85 ? `ppos=${params.ppos} を維持、pneg=${params.pneg} を ${(params.pneg * 1.15).toFixed(2)} に上げて後傾応答を強化。`
+                : '対称性は良好、現在の ppos/pneg バランスを維持。';
+      html += sec(cls, `<b style="color:${c}">${escapeHtml(s.name)}</b>　Fwd|P|=${fa.toFixed(0)} / Bwd|P|=${ba.toFixed(0)} (ratio=${ratio.toFixed(2)})<br>　${asym}<br>　▶ ${fix}` + bar(Math.min(100, ratio * 50), `Bwd/Fwd power ratio = ${ratio.toFixed(2)}`));
+    });
+    return html;
+  },
+
+  // ───── 3. RESPONSIVENESS ─────
+  response(items) {
+    let html = '<h3>⚡ RESPONSIVENESS — 大角度からの回復応答</h3>';
+    items.forEach(({ s, c }) => {
+      const samples = s.samples;
+      // find first crossing of |angle| > 10°, then time to return to ±5°
+      let triggerIdx = samples.findIndex(p => Math.abs(p.angle) > 10);
+      if (triggerIdx === -1) {
+        html += sec('ok', `<b style="color:${c}">${escapeHtml(s.name)}</b>　・|∠|>10° の励起なし → 解析対象データなし`);
+        return;
+      }
+      const t0 = samples[triggerIdx].t;
+      let recoverT = null;
+      for (let i = triggerIdx + 1; i < samples.length; i++) {
+        if (Math.abs(samples[i].angle) <= 5) { recoverT = samples[i].t - t0; break; }
+      }
+      const peak = samples.slice(triggerIdx, triggerIdx + 30).reduce((a, b) => Math.abs(a.angle) > Math.abs(b.angle) ? a : b);
+      let cls, msg;
+      if (recoverT == null) { cls = 'err'; msg = `回復失敗 (${(samples[triggerIdx].angle > 0 ? '後' : '前')}に倒れた)。peak ∠=${peak.angle.toFixed(1)}°`; }
+      else if (recoverT < 200) { cls = 'ok'; msg = `高速回復 ${recoverT}ms (peak ∠=${peak.angle.toFixed(1)}°)`; }
+      else if (recoverT < 500) { cls = 'warn'; msg = `中速回復 ${recoverT}ms (peak ∠=${peak.angle.toFixed(1)}°)`; }
+      else { cls = 'err'; msg = `低速回復 ${recoverT}ms — 反応不十分`; }
+      const params = s.params || {};
+      const fix = recoverT == null || recoverT > 400
+        ? `kp=${params.kp} → ${(params.kp * 1.15).toFixed(1)} もしくは kd=${params.kd} → ${(params.kd * 1.3).toFixed(2)} で応答性向上検討。`
+        : '応答性は十分。';
+      html += sec(cls, `<b style="color:${c}">${escapeHtml(s.name)}</b>　・${msg}<br>　▶ ${fix}`);
+    });
+    return html;
+  },
+
+  // ───── 4. SATURATION ─────
+  saturation(items) {
+    let html = '<h3>🔥 SATURATION — PWM飽和率と影響</h3>';
+    items.forEach(({ s, c }) => {
+      const params = s.params || {};
+      const plim = params.plim || 350;
+      const ps = s.samples.map(p => Math.abs(p.power));
+      const sat = ps.filter(p => p >= plim * 0.95).length;
+      const satPct = ps.length ? (sat / ps.length * 100) : 0;
+      const peak = Math.max(...ps);
+      let cls, verdict;
+      if (satPct < 10) { cls = 'ok'; verdict = '飽和稀。出力余裕あり。'; }
+      else if (satPct < 30) { cls = 'warn'; verdict = '部分的飽和。kp 微減 or plim 拡大検討。'; }
+      else { cls = 'err'; verdict = `恒常飽和。kp/kspd を下げ、plim を ${plim} → ${Math.round(plim * 1.2)} へ。`; }
+      // sparkline of |power|
+      html += sec(cls, `<b style="color:${c}">${escapeHtml(s.name)}</b>　peak=${peak} / plim=${plim} / 飽和=${satPct.toFixed(1)}%<br>　▶ ${verdict}`
+        + bar(satPct, `saturation = ${satPct.toFixed(1)}%`)
+        + svgSpark(ps, c, 80, plim));
+    });
+    return html;
+  },
+
+  // ───── 5. OSCILLATION FFT ─────
+  fft(items) {
+    let html = '<h3>🌊 OSCILLATION SPECTRUM — 振動の主周波数</h3>';
+    items.forEach(({ s, c }) => {
+      const samples = s.samples;
+      if (samples.length < 32) { html += sec('warn', `<b style="color:${c}">${escapeHtml(s.name)}</b>　サンプル不足 (n=${samples.length})`); return; }
+      // detrend angle, compute simple DFT magnitude (limited to first ~30 bins)
+      const ang = samples.map(p => p.angle);
+      const mean = ang.reduce((a, b) => a + b, 0) / ang.length;
+      const x = ang.map(v => v - mean);
+      const N = x.length;
+      const dt = ((samples[N - 1].t - samples[0].t) / 1000) / (N - 1) || 0.05;
+      const fs = 1 / dt;
+      const maxK = Math.min(40, Math.floor(N / 2));
+      const mags = [];
+      for (let k = 1; k <= maxK; k++) {
+        let re = 0, im = 0;
+        for (let n = 0; n < N; n++) {
+          const a = -2 * Math.PI * k * n / N;
+          re += x[n] * Math.cos(a);
+          im += x[n] * Math.sin(a);
+        }
+        mags.push({ f: k * fs / N, mag: Math.sqrt(re * re + im * im) / N });
+      }
+      // top 3 peaks
+      const top = mags.slice().sort((a, b) => b.mag - a.mag).slice(0, 3);
+      const dom = top[0];
+      let cls = 'ok', msg = '低振動。安定。';
+      if (dom.f > 4 && dom.mag > 2) { cls = 'err'; msg = `高周波振動 (${dom.f.toFixed(1)}Hz) — kp 過大 or kd 不足`; }
+      else if (dom.f > 1 && dom.mag > 5) { cls = 'warn'; msg = `中周波振動 (${dom.f.toFixed(1)}Hz)`; }
+      const list = top.map((p, i) => `${i + 1}: ${p.f.toFixed(2)}Hz (mag=${p.mag.toFixed(2)})`).join(' / ');
+      html += sec(cls, `<b style="color:${c}">${escapeHtml(s.name)}</b>　fs≈${fs.toFixed(1)}Hz / N=${N}<br>　TOP3: ${list}<br>　▶ ${msg}`
+        + svgSpark(mags.map(m => m.mag), c, 100));
+    });
+    return html;
+  },
+
+  // ───── 6. P/D CONTRIB ─────
+  contrib(items) {
+    let html = '<h3>📊 P/D CONTRIBUTION — 項別寄与度</h3>';
+    items.forEach(({ s, c }) => {
+      const sumAbs = (k) => s.samples.reduce((a, b) => a + Math.abs(b[k] || 0), 0);
+      const sp = sumAbs('p'), sd = sumAbs('d');
+      const tot = sp + sd || 1;
+      const pPct = sp / tot * 100, dPct = sd / tot * 100;
+      let cls = 'ok', msg = 'バランス良好';
+      if (dPct < 10) { cls = 'warn'; msg = 'D項寄与が小さい → kd を増やして減衰強化推奨'; }
+      else if (dPct > 60) { cls = 'warn'; msg = 'D項過剰 → ノイズ増幅の懸念、kd 微減検討'; }
+      html += sec(cls, `<b style="color:${c}">${escapeHtml(s.name)}</b>　Σ|P|=${sp.toFixed(0)} / Σ|D|=${sd.toFixed(0)}<br>　▶ ${msg}`
+        + bar(pPct, `P: ${pPct.toFixed(0)}%　|　D: ${dPct.toFixed(0)}%`));
+    });
+    return html;
+  },
+
+  // ───── 7. SUGGEST PARAMS (combines insights) ─────
+  suggest(items) {
+    let html = '<h3>🤖 PARAMETER SUGGESTION — 次に試す設定</h3>';
+    items.forEach(({ s, c }) => {
+      const params = { ...(s.params || {}) };
+      const stats = s.stats || {};
+      const sug = { ...params };
+      const reasons = [];
+      // saturation check
+      const ps = s.samples.map(p => Math.abs(p.power));
+      const plim = params.plim || 350;
+      const satPct = ps.length ? ps.filter(p => p >= plim * 0.95).length / ps.length * 100 : 0;
+      if (satPct > 30) {
+        sug.plim = Math.round(plim * 1.2);
+        reasons.push(`飽和${satPct.toFixed(0)}% → plim ${plim}→${sug.plim}`);
+      }
+      // fall direction → bias / asymmetric P
+      if (stats.fall_dir === 'backward' && stats.max_abs_angle > 20) {
+        sug.bias = +(((params.bias || 0) - 1.0).toFixed(2));
+        sug.pneg = +((params.pneg * 1.1).toFixed(2));
+        reasons.push(`後傾倒れ → bias=${sug.bias}, pneg ${params.pneg}→${sug.pneg}`);
+      }
+      if (stats.fall_dir === 'forward' && stats.max_abs_angle > 20) {
+        sug.bias = +(((params.bias || 0) + 1.0).toFixed(2));
+        sug.ppos = +((params.ppos * 1.1).toFixed(2));
+        reasons.push(`前傾倒れ → bias=${sug.bias}, ppos ${params.ppos}→${sug.ppos}`);
+      }
+      // alim cutoff
+      if (params.alim && stats.max_abs_angle > params.alim) {
+        sug.alim = params.alim + 15;
+        reasons.push(`alim カットオフ → ${params.alim}→${sug.alim}`);
+      }
+      // oscillation
+      if (stats.osc_hz > 4) {
+        sug.kp = +(params.kp * 0.9).toFixed(1);
+        sug.kd = +(params.kd * 1.2).toFixed(2);
+        reasons.push(`高振動 ${stats.osc_hz.toFixed(1)}Hz → kp ${params.kp}→${sug.kp}, kd ${params.kd}→${sug.kd}`);
+      }
+      // P/D balance
+      const sp = s.samples.reduce((a, b) => a + Math.abs(b.p || 0), 0);
+      const sd = s.samples.reduce((a, b) => a + Math.abs(b.d || 0), 0);
+      const dRatio = sd / (sp + sd || 1);
+      if (dRatio < 0.10 && stats.fall_dir !== 'standing') {
+        sug.kd = +(params.kd * 1.3).toFixed(2);
+        reasons.push(`D項寄与小 (${(dRatio * 100).toFixed(0)}%) → kd ${params.kd}→${sug.kd}`);
+      }
+      const noChange = JSON.stringify(sug) === JSON.stringify(params);
+      const cls = noChange ? 'ok' : 'warn';
+      const reasonsHtml = reasons.length ? reasons.map(r => `　・${r}`).join('<br>') : '　・変更不要、現設定で再現性確認推奨';
+      // diff highlight
+      const diffKeys = Object.keys(sug).filter(k => sug[k] !== params[k]);
+      const cmdParts = diffKeys.map(k => `${k}=${sug[k]}`).join(' ');
+      const cmdLine = cmdParts ? `<br>　▶ <code style="color:var(--cyan);background:rgba(0,229,255,.08);padding:2px 6px">curl "/api/c?q=${encodeURIComponent(cmdParts)}"</code>` : '';
+      html += sec(cls, `<b style="color:${c}">${escapeHtml(s.name)}</b><br>${reasonsHtml}${cmdLine}`);
+    });
+    // overall verdict if multi
+    if (items.length >= 2) {
+      const best = items.reduce((a, b) => (a.s.duration > b.s.duration ? a : b));
+      html += `<div class="verdict"><h4>★ OVERALL VERDICT</h4>最長持続: <b style="color:${best.c}">${escapeHtml(best.s.name)}</b> (${(best.s.duration / 1000).toFixed(1)}s)。このパラメータをベースに、上記提案を1つずつ試すと差分が見えやすい。</div>`;
+    }
+    return html;
+  },
+};
+
+// option toggles → rebuild
+['optAlimBand', 'optNormalize', 'optSmooth'].forEach(id => {
+  document.getElementById(id).addEventListener('change', rebuild);
+});
+
+loadAll();
+</script>
+</body>
+</html>
