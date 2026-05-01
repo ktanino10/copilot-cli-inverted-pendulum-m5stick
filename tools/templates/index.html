@@ -258,9 +258,11 @@
   .diag-mascot{float:right;width:64px;height:64px;object-fit:contain;
     margin-left:10px;filter:drop-shadow(0 0 10px currentColor)}
 
-  /* i18n: hide language-specific elements based on body class */
-  body.lang-jp [data-en]{display:none}
-  body.lang-en [data-jp]{display:none}
+  /* i18n: render attribute value via ::before; only display ::before for current language */
+  [data-en]::before{content:""}
+  [data-jp]::before{content:""}
+  body.lang-en [data-en]::before{content:attr(data-en)}
+  body.lang-jp [data-jp]::before{content:attr(data-jp)}
 
   /* language toggle button group */
   .lang-toggle{display:inline-flex;border:1px solid var(--cyan);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);overflow:hidden}
@@ -280,7 +282,7 @@
     animation:monaIdle var(--mona-dur) ease-in-out infinite;
     filter:drop-shadow(0 0 6px var(--cyan));
   }
-  .mona-widget img{width:100%;height:100%;object-fit:contain;display:block}
+  .mona-widget img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .12s ease-out;transform-origin:50% 60%}
   .mona-widget .ring{
     position:absolute;inset:-4px;border:1px solid var(--cyan);border-radius:50%;
     opacity:.4;animation:monaRing var(--mona-dur) ease-out infinite;
@@ -622,6 +624,15 @@ function updateMona(angle, dangle, motorOn) {
   w.style.setProperty('--mona-dur', dur);
   s.className = 'mona-status' + (state ? ' ' + state : '');
   s.innerHTML = `<span data-en="${label.en}" data-jp="${label.jp}"></span>`;
+  // Sync face direction with angle sign:
+  //   angle > 0 (backward tilt) → Mona faces/leans right (no flip, rotate +)
+  //   angle < 0 (forward tilt)  → Mona faces left (flip horizontally) and leans the other way
+  const img = w.querySelector('img');
+  if (img) {
+    const sx = angle >= 0 ? 1 : -1;
+    const tilt = Math.max(-30, Math.min(30, angle * 0.7));
+    img.style.transform = `scaleX(${sx}) rotate(${sx * tilt}deg)`;
+  }
 }
 
 // ═══ Analytics intro overlay ═══
