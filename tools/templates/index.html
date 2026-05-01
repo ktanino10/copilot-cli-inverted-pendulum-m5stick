@@ -422,11 +422,12 @@
     border-top:1px solid var(--cyan);width:240px;justify-content:space-around}
   #parade.go{display:flex;animation:paradeMarch 3s linear forwards}
   #parade img{width:48px;height:48px;object-fit:contain;
-    filter:drop-shadow(0 0 8px var(--cyan));animation:paradeBounce .5s infinite alternate}
-  #parade img:nth-child(1){animation-delay:0s}
-  #parade img:nth-child(2){animation-delay:.1s;filter:drop-shadow(0 0 8px var(--purple))}
-  #parade img:nth-child(3){animation-delay:.2s;filter:drop-shadow(0 0 8px var(--amber))}
-  #parade img:nth-child(4){animation-delay:.3s;filter:brightness(0) invert(1) drop-shadow(0 0 8px #fff)}
+    animation:paradeBounce .5s infinite alternate}
+  /* order: Octocat, Copilot, Mona, Ducky */
+  #parade img:nth-of-type(1){animation-delay:0s;filter:brightness(0) invert(1) drop-shadow(0 0 8px var(--cyan))}
+  #parade img:nth-of-type(2){animation-delay:.1s;filter:drop-shadow(0 0 8px var(--purple))}
+  #parade img:nth-of-type(3){animation-delay:.2s;filter:drop-shadow(0 0 10px var(--cyan)) saturate(1.2)}
+  #parade img:nth-of-type(4){animation-delay:.3s;filter:drop-shadow(0 0 8px var(--amber))}
   #parade .pcap{position:absolute;top:-22px;left:50%;transform:translateX(-50%);
     font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:6px;
     color:var(--cyan);text-shadow:0 0 8px var(--cyan);white-space:nowrap}
