@@ -64,6 +64,7 @@ copilot-cli-inverted-pendulum-m5stick/
 |--------------|------------|------------|
 | 初めてPID制御に触れる | `docs/pid_guide.md` | このREADMEの「今回の実験を理論で読む」→ `inverted_pendulum.ino` のコメント |
 | 制御工学の基礎がある | `docs/pid_theory.md` | このREADMEの実験ログ → `inverted_pendulum.ino` のソースコード |
+| 通信・WiFi周りを知りたい | `docs/wifi_communication.md` | このREADMEの「🌍 持ち運び・遠隔運用」セクション |
 | すぐ動かしたい | `README.md`（使い方セクション） | `servo_test.ino` で動作確認 → `inverted_pendulum.ino` 書き込み → 進捗ログ |
 
 ### きっかけ
@@ -140,6 +141,8 @@ float kdst = 0.14;
 
 倒立振子を**自宅・オフィス・出先**で動かしたいときの実用的な選択肢を、
 おすすめ順にまとめる。すべてファームウェア／UIに既に組み込み済み。
+
+> 📡 通信そのものの仕組みは別資料にまとめた：**[docs/wifi_communication.md](docs/wifi_communication.md)** — 初心者向けと技術者向けの2部構成（WiFi/HTTP/AP/Tailscale/fetchシム などをこのプロジェクトの実装に紐づけて解説）。
 
 | # | シナリオ | 使い方 | 必要なもの | 備考 |
 |---|---|---|---|---|
@@ -838,7 +841,169 @@ targetBias=0.0
 4. `fil_N=5` の遅れを疑い、`fil_N=3` をログ付きで比較する。
 5. 自動PIDスイープは、現在の「線形 `acc[2]` + 自動ゼロ合わせ + 前後非対称補正」を基準にやり直す。
 
-### 参考
+#### 2026-05-02: チューニングUIの解析強化・ブート演出・GitHub Pagesデモ・どこでも起動
+
+実機のハードはそのままで、**ソフト側を一気に整えた日**。前半はチューニングUIの解析機能と演出、後半は持ち運び対応とウェブデモ化。
+
+##### 1. チューニングUIの統計解析強化（STATS LAB）
+
+> 「期待姿勢が緑（|∠|≤5°）を保つための最適なパラメータの特定」を統計的に出せるようにしたい、という要件。
+
+- **GREEN ZONE バナー** — 全解析結果のサマリにベスト構成を抽出表示
+- **STATS LAB パネル** — 2D ヒストグラム / 3D ヒストグラム / KP×KD 散布図 / 複数パラメータ組合せ解析
+- **エラーバー / 信頼区間**入りのパラメータ感度プロット
+- **score（0〜100）** を新設：
+  - `duration·3`（最大30）+ `green%·50`（最大50）+ `max(0, 20−mean|∠|·2)`（最大20）
+  - 1テスト1スコア。緑帯滞在時間 + 倒れない時間 + 振れ幅の小ささを統合
+- **`⇅ APPLY` ボタン**：過去の好スコア構成のパラメータを **ワンクリックで実機に再投入**（`/api/c?q=k=v` を順に push）
+- セッション一覧を `score` 降順で並べてベスト設定が一目でわかる
+
+##### 2. マスコット演出とi18n
+
+| マスコット | 役割 |
+|---|---|
+| **Mona**（GIF） | リアルタイムATTITUDE表示。安定時はゆったり、転倒の瞬間に高速アニメ。`+/-` の角度に合わせて顔の向きが追従 |
+| **Copilot**（GIF） | 解析画面遷移時のヒーロー演出 |
+| **Ducky**（GIF） | 言語切替時に画面中央に大きく登場（モード切替の明示） / 通信ロスト時の見守りバナー |
+
+> 途中で「倒れた時のDuckyは要らない」というフィードバックがあり、PWM飽和バッジ・QUICK FALLトースト・診断パネルのリーダー切替など、**転倒に関わるDucky表示はすべて削除**。Duckyは「通信・モード切替」専用キャラに役割整理。
+
+##### 3. ブート演出（SEED風スタートアップ診断）
+
+最初のリロード時に**実プローブ付き**の診断シーケンスが流れるように。各行を1行ずつタイプ表示し、本物の `fetch` で確認して `[ OK ]` / `[ WARN ]` / `[ FAIL ]` を色分け表示：
+
+```
+[02:34:15.21] > HUD INTERFACE / DOM            ........ [ OK ]
+[02:34:15.45] > NETWORK STACK                  ........ [ OK ]
+[02:34:15.71] > TUNING SERVER · LOCAL API      ........ [ OK ]
+[02:34:15.98] > WI-FI LINK · M5STICKC PLUS2    ........ [ OK ]   GATEWAY 192.168 · 200 OK
+[02:34:16.21] > IMU · MPU6886 GYRO/ACCEL       ........ [ OK ]   ∠=0.42° · LIVE
+...
+◆ ALL SYSTEMS NOMINAL · LAUNCH
+```
+
+固定タイマーではなく**全プローブが完了するまで**閉じない。`WARN` があればアンバー、`FAIL` があれば赤バナーで2.2秒滞留。
+
+##### 4. GitHub Pages デモ化（`docs/demo/`）
+
+ハードを持っていない人にもUIを触ってもらえるように、Flaskなしで動く**完全静的版**をビルド。
+
+- `tools/build_demo.py` で `tools/templates/index.html` から自動生成
+- `window.IPS_DEMO = true` フラグを注入し、`fetch` をシムが横取り：
+  - `GET /api/s` → シミュレートされた50Hzテレメトリ（PIDパラメータ反映つき）
+  - `GET /api/c?q=k=v` → シム内の状態を実際に書き換え（スライダーがちゃんと効く）
+  - `GET /api/sessions` → バンドルされた `data/sessions/index.json`
+  - `GET /api/sessions/<id>` → 同 `data/sessions/<id>.json`
+- 5本の合成セッション（`baseline / kp_too_high / better_kd / pneg_tuned / winner`）を内包し、score 13〜32 の比較が見える
+- 左下に紫の **`DEMO MODE`** バッジで明示
+
+##### 5. どこでも起動できるようにする — マルチSSID + APフォールバック
+
+「オフィスに持って行ったとき、どうやって倒立振子を動かす？」への回答。**ファームに2層の安全網**を実装：
+
+```cpp
+// (B) 推奨: 複数SSIDを順に試す
+#define IPS_WIFI_HAS_LIST
+static const IpsWifiNet IPS_WIFI_LIST[] = {
+  {"home_2g",       "home_password"},
+  {"my_iphone_hot", "phone_password"},   // テザリング
+  {"office_guest",  "office_password"},
+};
+// (どれも圏外なら自動でAPモード: SSID=IPS-CTRL  pass=ips12345)
+```
+
+- 起動時に **WiFiスキャン** → 視界にある既知SSIDのみ8秒ずつトライ → 全滅なら **自分自身がアクセスポイント**になり `http://192.168.4.1/` を開放
+- LCD下段に **`<SSID> <IP>`** を常時表示。ブラウザで何を打てばいいか迷わない
+
+5つの運用シナリオ（家／AP／スマホテザリング／Tailscale遠隔／GitHub Pages）は README §「🌍 持ち運び・遠隔運用」に表で整理。
+
+##### 6. 通信まわりの技術解説（このプロジェクトでの実装）
+
+> 上の機能を理解しておくと、自分で拡張しやすい。
+
+###### (1) 制御UIとM5の通信モデル
+
+```
+ブラウザ ──HTTP──▶ Flask(tools/server.py) ──HTTP──▶ M5StickC Plus2
+           50ms毎                            50ms毎
+   /api/s, /api/c                       /s, /c
+```
+
+- **Flaskはただのプロキシ**。CORSやLAN/WiFi切替の差を吸収する薄い中継層。
+  - 実装は `tools/server.py` の `requests.get(f"{M5_BASE}/s")` 一行だけ
+  - `M5_URL` 環境変数で接続先IPを切替（家・AP・テザリングそれぞれ別IP）
+- **M5側はESP32の `WebServer`**：`server.on("/s", handler)` 程度の最小実装で、ステータスJSONとコマンド文字列を返す
+- **ポーリング**は50ms周期。WebSocket等のpushではなく単純な `setInterval(tick, 50)` で十分間に合う（人間の反応速度より速いし、ESP32側の処理負荷も小さい）
+
+###### (2) WiFiの3モード — STA / AP / STA+AP
+
+| モード | 役割 | このプロジェクトでの使いどころ |
+|---|---|---|
+| **STA**（Station） | 既存ルータの**子機**として参加。インターネットアクセス可、ブラウザ→M5は同一LAN必要 | 家・オフィスで普通に使う。`WiFi.begin(ssid, pass)` |
+| **AP**（Access Point） | M5自身が**親機**になる。ルータ不要だがインターネットなし | フォールバック。社外プレゼンや電車内など、信用できないWiFi下で完全独立動作 |
+| **STA+AP**（Hybrid） | 両方同時。STAでルータに繋ぎつつ、自分もAP（中継機のような動き） | このプロジェクトでは未使用。将来 mDNS応答+遠隔管理を一緒にやりたい時の選択肢 |
+
+切替は `WiFi.mode(WIFI_STA / WIFI_AP / WIFI_AP_STA)`。本プロジェクトはまずSTAで全SSID試行 → 全敗時に `WIFI_AP` に切替 + `WiFi.softAP(SSID, PASS)` を実施。
+
+###### (3) `WiFi.scanNetworks()` で「圏外なのに繋ぎに行く」を回避
+
+`WiFi.begin()` は接続失敗時に8秒前後ブロックする。3つ並べると**最悪24秒待たされる**。先に `scanNetworks()` で電波が見えるSSIDだけに絞ると、家にいるときは1試行で即座に繋がる：
+
+```cpp
+int n = WiFi.scanNetworks();
+for (each known ssid) {
+  bool inRange = false;
+  for (int j=0; j<n; j++) if (WiFi.SSID(j) == ssid) inRange = true;
+  if (!inRange) continue;     // 電波がない → スキップ
+  if (tryConnect(ssid, pass, 8000)) break;
+}
+```
+
+###### (4) ソフトAPモードの仕様（ESP32）
+
+- パスワードは **8文字以上必須**（短いと `softAP()` が `false` を返す）
+- デフォルトIPは **`192.168.4.1`**（DHCPサーバとして 192.168.4.2〜 を配布）
+- **インターネットアクセスは無し** — つまりブラウザ側がスマホ等の「モバイルデータ」を併用していない限り外には出られない
+- ノートPC側からは「IPS-CTRL」というSSIDが普通のWiFiとして見える
+
+###### (5) `fetch` シム（DEMOモード）の仕組み
+
+GitHub Pagesに置くとFlaskがいないので `/api/*` が全部404になる。ブラウザの `window.fetch` を**起動時に差し替え**て、URLパターンに応じて：
+
+- `/api/s` → JSオブジェクトを `Response` として返す（実際のHTTPは飛ばない）
+- `/api/c?q=...` → JS変数を書き換える
+- `/api/sessions/...` → 隣接の静的JSONを `_origFetch` で読みに行く
+
+これは**Service Workerなしのモック**。Service Workerを使うとオフラインキャッシュ等もできるが、デモ用途には1ファイルで完結するこの方式が手軽。
+
+###### (6) 遠隔運用 (Tailscale など)
+
+「オフィスから自宅のM5を操作したい」場合：
+
+1. 自宅PCで `python3 tools/server.py` を常駐
+2. 自宅PCとオフィスPCに **Tailscale**（無料枠）をインストール、同じTailnetに参加
+3. オフィスPCのブラウザで `http://<自宅PCのTailscale IP>:5000/` を開く
+
+ポート開放やDDNS設定なしで**P2P VPN**が張れる。Flaskが薄いプロキシなので、自宅LAN→M5のWiFi通信はそのまま、外側だけ暗号トンネルになる構成。
+
+##### 7. 今日のコミット
+
+```
+4210dac  Mona パレード filter 修正（白すぎ問題）
+9184b19  per-session score + APPLY ボタン + 転倒時Ducky除去
+c45f4a7  ブート画面: ライブ診断シーケンス
+e4a80ce  ブート画面サブタイトルから "SEED" 表記削除
+(latest) GitHub Pages デモ + マルチSSID + APフォールバック + 通信解説
+```
+
+##### 8. 明日以降の小ネタ候補
+
+- `mDNS` 応答（`pendulum.local`）でIP固定不要に
+- BLE経由のワイヤレスシリアル（Wi-Fiが完全にダメな場所用）
+- GitHub Actions でデモを自動再ビルド + Pages デプロイ
+- セッションのスコア順ランキングをCSVエクスポート
+
+
 
 - [Interface誌 記事ページ](https://interface.cqpub.co.jp/202509st/)
 - [しんさん (n_shinichi) の倒立振子ブログ記事](https://n-shinichi.hatenablog.com/entry/2025/08/31/163903) — M5StickC Plus / Plus2 向けサンプルスケッチの解説。Interface誌キットの制作者ご本人による技術情報
