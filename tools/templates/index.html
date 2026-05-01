@@ -404,17 +404,6 @@
   #linkLostBanner .ll-msg .small{display:block;font-family:'Share Tech Mono',monospace;
     color:#ffb0b0;font-size:10px;letter-spacing:2px;margin-top:2px}
 
-  /* Fall-roller Ducky animation */
-  #fallRoller{position:fixed;bottom:14px;right:-180px;z-index:9996;
-    width:120px;height:120px;pointer-events:none}
-  #fallRoller img{width:100%;height:100%;object-fit:contain;
-    filter:drop-shadow(0 0 14px var(--amber))}
-  #fallRoller.go{animation:fallRoll 750ms cubic-bezier(.4,0,.6,1) forwards}
-  @keyframes fallRoll{
-    0%{right:-180px;transform:rotate(0)}
-    100%{right:calc(100% + 40px);transform:rotate(-720deg)}
-  }
-
   /* Mascot parade easter egg */
   #parade{position:fixed;bottom:0;left:-260px;z-index:9995;
     display:none;align-items:flex-end;gap:14px;padding:12px 18px;
@@ -510,9 +499,6 @@
     <span class="small"><span data-en="DUCKY IS WATCHING — RETRYING..." data-jp="Ducky が監視中 — 再接続試行中..."></span></span>
   </div>
 </div>
-
-<!-- Ducky fall-moment roller -->
-<div id="fallRoller" aria-hidden="true"><img src="/assets/duck.gif" alt="Ducky fall"></div>
 
 <!-- Mascot parade easter egg -->
 <div id="parade" aria-hidden="true">
@@ -802,7 +788,6 @@ function updateMona(angle, dangle, motorOn) {
 let lastStatus = null;
 let linkFailStreak = 0;
 let satStartTs = 0;
-let lastFallSign = 0;
 async function fetchStatus() {
   try {
     const r = await fetch('/api/s');
@@ -826,7 +811,6 @@ async function fetchStatus() {
     document.getElementById('led_motor').className = 'led ' + (j.on ? '' : 'off');
     updateMona(a, j.dangle || 0, !!j.on);
     updateDuckSat(j);
-    updateFallRoller(a, !!j.on);
     PARAMS.forEach(([k]) => {
       if (k in j && document.activeElement !== refs[k].r && document.activeElement !== refs[k].n) {
         refs[k].r.value = j[k]; refs[k].n.value = j[k];
@@ -868,30 +852,6 @@ function showLinkLost() {
 function hideLinkLost() {
   const el = document.getElementById('linkLostBanner');
   if (el && el.classList.contains('show')) el.classList.remove('show');
-}
-
-// ═══ Ducky: fall-moment roller ═══
-//   |angle| が ±15° を新たに超えた瞬間に画面右下 → 左へ転がる演出。
-//   同じ向きの転倒で連続発火しないように lastFallSign を保持。
-function updateFallRoller(angle, motorOn) {
-  if (!motorOn) { lastFallSign = 0; return; }
-  const sign = angle > 15 ? 1 : angle < -15 ? -1 : 0;
-  if (sign === 0) {
-    if (Math.abs(angle) < 8) lastFallSign = 0; // 平静に戻ったらリセット
-    return;
-  }
-  if (sign !== lastFallSign) {
-    lastFallSign = sign;
-    triggerFallRoller();
-  }
-}
-function triggerFallRoller() {
-  const el = document.getElementById('fallRoller');
-  if (!el) return;
-  el.classList.remove('go');
-  void el.offsetWidth;
-  el.classList.add('go');
-  setTimeout(() => el.classList.remove('go'), 800);
 }
 
 // ═══ Live ring chart ═══
