@@ -26,17 +26,23 @@
 // ============================================================
 int motor_offsetL = 0, motor_offsetR = 0;
 int16_t motor_init_L = 1500, motor_init_R = 1500;
-float kpower = 0.0;
+// 速度・位置フィードバックを"極弱"で復活：純P+Dだけだと
+// 車輪が振子の真下へ走り続けて止まらない（位置/速度ルーフ無し）。
+// kpower で「power の積分(=車輪速度)」を生成し、kspd で抑える。
+float kpower = 0.0001;
 float kp = 10.0;
 float ki = 0.0;
 float kd = 0.35;
-float kspd = 0.0;
+float kspd = 0.15;
 float kdst = 0.0;
 int16_t power_limit = 350;
 float power_pos_scale = 0.85;  // +power = 前進補正
 float power_neg_scale = 1.70;  // -power = 後退補正。後ろへ逃げるため強める
 int16_t min_drive_power = 0;   // 振動源になるため既定では無効
 float min_drive_angle = 3.0;   // 小刻み振動では最低出力を入れない
+// PID有効角度範囲。広いと LIMIT 復帰時に大角度→飽和→限界サイクル振動の原因。
+// ±20 に絞り、復帰時の出力を power_limit 内に抑える。
+float angle_limit = 20.0;
 
 // Pitch_offset: atan2 + この値で直立=0°
 // n_shinichi氏は81を使用。Plus2での実測値に要調整。
@@ -209,8 +215,8 @@ void processSerial() {
     Serial.printf("zero po=%.2f bias=%.2f\n", Pitch_offset, targetBias);
   }
   else if (cmd == "?") {
-    Serial.printf("kp=%.2f ki=%.2f kd=%.2f kspd=%.2f kdst=%.2f po=%.2f po2=%.2f bias=%.2f plim=%d ppos=%.2f pneg=%.2f minp=%d minang=%.1f\n",
-      kp, ki, kd, kspd, kdst, Pitch_offset, Pitch_offset2, targetBias, power_limit, power_pos_scale, power_neg_scale, min_drive_power, min_drive_angle);
+    Serial.printf("kp=%.2f ki=%.2f kd=%.2f kspd=%.2f kdst=%.2f kpower=%.4f po=%.2f po2=%.2f bias=%.2f plim=%d ppos=%.2f pneg=%.2f minp=%d minang=%.1f alim=%.1f\n",
+      kp, ki, kd, kspd, kdst, kpower, Pitch_offset, Pitch_offset2, targetBias, power_limit, power_pos_scale, power_neg_scale, min_drive_power, min_drive_angle, angle_limit);
     Serial.printf("Angle=%.1f Pitch=%.1f PF=%.1f\n", Angle, Pitch, Pitch_filter);
     Serial.printf("acc=%.2f,%.2f,%.2f gyro=%.1f,%.1f,%.1f\n", acc[0], acc[1], acc[2], gyro[0], gyro[1], gyro[2]);
   }
@@ -228,6 +234,7 @@ void processSerial() {
   else if (cmd.startsWith("pneg=")) { power_neg_scale = cmd.substring(5).toFloat(); Serial.printf("pneg=%.2f\n", power_neg_scale); }
   else if (cmd.startsWith("minp=")) { min_drive_power = cmd.substring(5).toInt(); Serial.printf("minp=%d\n", min_drive_power); }
   else if (cmd.startsWith("minang=")) { min_drive_angle = cmd.substring(7).toFloat(); Serial.printf("minang=%.1f\n", min_drive_angle); }
+  else if (cmd.startsWith("alim=")) { angle_limit = cmd.substring(5).toFloat(); Serial.printf("alim=%.1f\n", angle_limit); }
   else if (cmd.startsWith("oL=")) { motor_offsetL = cmd.substring(3).toInt(); Serial.printf("oL=%d\n", motor_offsetL); }
   else if (cmd.startsWith("oR=")) { motor_offsetR = cmd.substring(3).toInt(); Serial.printf("oR=%d\n", motor_offsetR); }
 }
@@ -303,7 +310,7 @@ void loop() {
 
   // 10ms制御ループ（n_shinichi氏と同じ）
   if (millis() > ms10) {
-    if (-45 < Angle && Angle < 45) {
+    if (-angle_limit < Angle && Angle < angle_limit) {
       wait_count++;
       if (wait_count > 0) {
         PID_ctrl();
