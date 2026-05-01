@@ -1,0 +1,22 @@
+# WiFi credentials (never commit)
+inverted_pendulum/wifi_config.h
+
+# Arduino build artifacts
+build/
+*.elf
+*.hex
+*.bin
+*.map
+
+# Logs (auto-generated)
+tools/data/monitor_*.csv
+tools/data/failure_log_*.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+tools/data/sessions/

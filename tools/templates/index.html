@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>倒立振子チューニング</title>
+<style>
+  :root{
+    --bg:#0d1117; --fg:#c9d1d9; --panel:#161b22; --bd:#30363d;
+    --acc:#58a6ff; --ok:#3fb950; --warn:#d29922; --err:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--fg);font-size:14px}
+  header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--bd)}
+  header h1{font-size:16px;margin:0;color:var(--acc)}
+  header .ip{font-size:11px;color:#8b949e;font-family:monospace}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--bd);border-radius:6px;padding:10px}
+  .panel h2{font-size:13px;margin:0 0 8px 0;color:var(--acc);text-transform:uppercase;letter-spacing:.5px}
+
+  /* live angle */
+  .ang-big{font-size:54px;font-weight:bold;text-align:center;font-variant-numeric:tabular-nums;padding:6px 0}
+  .ang-big.ok{color:var(--ok)} .ang-big.warn{color:var(--warn)} .ang-big.err{color:var(--err)}
+  .meta{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px;color:#8b949e}
+  .meta div span{display:block;color:var(--fg);font-size:14px;font-weight:bold}
+
+  /* buttons */
+  .btnrow{display:flex;gap:6px;margin:6px 0}
+  button{padding:8px 14px;border:0;border-radius:4px;font-weight:bold;cursor:pointer;font-size:13px}
+  .b-on{background:var(--ok);color:#000}
+  .b-off{background:var(--err);color:#fff}
+  .b-zero{background:var(--acc);color:#000}
+  .b-test{background:#bc8cff;color:#000}
+  .b-stop{background:#ff7b72;color:#fff}
+  .b-sec{background:#21262d;color:var(--fg);border:1px solid var(--bd)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+
+  /* sliders */
+  .sliders{display:grid;grid-template-columns:1fr;gap:3px}
+  .slider{display:grid;grid-template-columns:50px 1fr 65px;gap:6px;align-items:center}
+  .slider label{font-weight:bold;font-family:monospace;font-size:12px}
+  .slider input[type=range]{width:100%}
+  .slider input[type=number]{background:#0d1117;color:var(--fg);border:1px solid var(--bd);padding:3px 5px;border-radius:3px;font-size:12px;font-family:monospace;text-align:right}
+
+  /* chart */
+  #chart{width:100%;height:200px;display:block;background:#0d1117;border-radius:4px}
+
+  /* sessions list */
+  .test-input{display:flex;gap:6px;margin:6px 0;align-items:center}
+  .test-input input{flex:1;background:#0d1117;color:var(--fg);border:1px solid var(--bd);padding:6px;border-radius:4px;font-size:13px}
+  .session-list{max-height:300px;overflow:auto}
+  .session-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;padding:6px;border-bottom:1px solid var(--bd);align-items:center;font-size:12px}
+  .session-row:hover{background:#1c2128}
+  .session-row .name{font-weight:bold;color:var(--fg)}
+  .session-row .stats{color:#8b949e;font-size:11px}
+  .session-row .pill{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:bold}
+  .pill.fwd{background:#f85149;color:#fff}
+  .pill.bwd{background:#d29922;color:#000}
+  .pill.ok{background:#3fb950;color:#000}
+  .session-row input[type=checkbox]{transform:scale(1.2)}
+  .session-row .del{background:transparent;color:#8b949e;border:0;cursor:pointer;font-size:14px;padding:2px 6px}
+  .session-row .del:hover{color:var(--err)}
+
+  /* compare */
+  #compare{margin-top:10px}
+  #compareChart{width:100%;height:240px;background:#0d1117;border-radius:4px;display:block}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:11px}
+  .legend span{display:flex;align-items:center;gap:4px}
+  .legend i{display:inline-block;width:12px;height:3px}
+
+  /* diagnose */
+  .diag{padding:8px;border-radius:4px;background:#0d1117;border-left:3px solid var(--acc);font-size:12px;line-height:1.5;margin-top:6px}
+  .diag h3{margin:0 0 6px 0;font-size:12px;color:var(--acc);text-transform:uppercase}
+  .diag.empty{opacity:.5}
+
+  /* log */
+  #log{background:#0d1117;border:1px solid var(--bd);border-radius:4px;padding:6px;font-family:monospace;font-size:11px;height:120px;overflow:auto;white-space:pre-wrap}
+
+  /* status badge */
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold}
+  .badge.rec{background:var(--err);color:#fff;animation:pulse 1s infinite}
+  .badge.idle{background:#21262d;color:#8b949e}
+  @keyframes pulse{50%{opacity:.4}}
+</style>
+</head><body>
+
+<header>
+  <h1>🤖 倒立振子チューニング UI</h1>
+  <span class="ip" id="ip">connecting…</span>
+</header>
+
+<div class="grid">
+
+  <!-- LEFT: live + controls -->
+  <div>
+    <div class="panel">
+      <h2>Live</h2>
+      <div class="ang-big" id="ang">--</div>
+      <div class="meta">
+        <div>Power<span id="m_pw">-</span></div>
+        <div>Motor<span id="m_on">-</span></div>
+        <div>Batt<span id="m_bat">-</span></div>
+        <div>dAng<span id="m_dang">-</span></div>
+      </div>
+      <div class="btnrow">
+        <button class="b-on" onclick="cmd('on')">▶ ON</button>
+        <button class="b-off" onclick="cmd('off')">■ OFF</button>
+        <button class="b-zero" onclick="cmd('zero')">⊘ ZERO</button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:8px">
+      <h2>Test Recording <span class="badge idle" id="recBadge">IDLE</span></h2>
+      <div class="test-input">
+        <input id="testName" placeholder="セッション名 (例: kp18_kd05_pneg13)">
+        <button class="b-test" id="startBtn" onclick="startTest()">▶ START</button>
+        <button class="b-stop" id="stopBtn" onclick="stopTest()" disabled>⏹ STOP</button>
+      </div>
+      <canvas id="chart" width="600" height="200"></canvas>
+      <div style="font-size:11px;color:#8b949e;margin-top:4px" id="recInfo">未記録</div>
+    </div>
+
+    <div class="panel" style="margin-top:8px">
+      <h2>Log</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: gains + sessions + compare -->
+  <div>
+    <div class="panel">
+      <h2>Gains</h2>
+      <div class="sliders" id="sliders"></div>
+    </div>
+
+    <div class="panel" style="margin-top:8px">
+      <h2>Sessions</h2>
+      <div style="font-size:11px;color:#8b949e;margin-bottom:6px">最大4セッションを選択して比較</div>
+      <div class="session-list" id="sessions"></div>
+    </div>
+
+    <div class="panel" id="compare" style="display:none">
+      <h2>Compare</h2>
+      <canvas id="compareChart" width="600" height="240"></canvas>
+      <div class="legend" id="legend"></div>
+      <div class="diag" id="diag">
+        <h3>診断</h3>
+        <div id="diagBody">セッションを2つ以上選択してください</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ════════════ パラメータ定義 ════════════
+const PARAMS = [
+  ['kp',     0,  30,   0.5  ],
+  ['kd',     0,   3,   0.05 ],
+  ['ki',     0,   5,   0.1  ],
+  ['kspd',   0,   1.0, 0.02 ],
+  ['ppos',   0.5, 2.0, 0.05 ],
+  ['pneg',   0.5, 2.0, 0.05 ],
+  ['bias', -10,  10,   0.5  ],
+  ['alim',  10,  60,   1    ],
+  ['plim', 100, 500,  10    ],
+  ['kpower', 0,   0.005, 0.0001],
+  ['minp',   0, 200,  5    ],
+  ['po',   -30,  30,   0.5  ],
+];
+const refs = {};
+const slidersEl = document.getElementById('sliders');
+PARAMS.forEach(([k, mn, mx, st]) => {
+  const row = document.createElement('div'); row.className = 'slider';
+  row.innerHTML = `<label>${k}</label>
+    <input type="range" id="r_${k}" min="${mn}" max="${mx}" step="${st}">
+    <input type="number" id="n_${k}" min="${mn}" max="${mx}" step="${st}">`;
+  slidersEl.appendChild(row);
+  const r = row.querySelector('#r_'+k), n = row.querySelector('#n_'+k);
+  refs[k] = { r, n };
+  const send = v => { n.value = v; r.value = v; cmd(`${k}=${v}`); };
+  let timer;
+  r.oninput = e => { n.value = e.target.value; clearTimeout(timer); timer = setTimeout(() => send(parseFloat(e.target.value)), 80); };
+  n.onchange = e => send(parseFloat(e.target.value));
+});
+
+// ════════════ ログ + コマンド送信 ════════════
+const logEl = document.getElementById('log');
+function logmsg(s) {
+  const t = new Date().toTimeString().slice(0, 8);
+  logEl.textContent = `[${t}] ${s}\n` + logEl.textContent;
+  if (logEl.textContent.length > 4000) logEl.textContent = logEl.textContent.slice(0, 4000);
+}
+async function cmd(c) {
+  try {
+    const r = await fetch('/api/c?q=' + encodeURIComponent(c));
+    const t = await r.text();
+    logmsg('> ' + c + ' → ' + t.trim());
+  } catch (e) { logmsg('ERR ' + e); }
+}
+
+// ════════════ ステータス取得 (ライブ) ════════════
+let lastStatus = null;
+async function fetchStatus() {
+  try {
+    const r = await fetch('/api/s');
+    const j = await r.json();
+    lastStatus = j;
+    document.getElementById('ip').textContent = 'M5 OK';
+    const a = document.getElementById('ang');
+    a.textContent = j.angle.toFixed(1) + '°';
+    const ab = Math.abs(j.angle);
+    a.className = 'ang-big ' + (ab < 5 ? 'ok' : ab < 15 ? 'warn' : 'err');
+    document.getElementById('m_pw').textContent = j.power;
+    document.getElementById('m_on').textContent = j.on ? 'ON' : 'OFF';
+    document.getElementById('m_bat').textContent = (j.batt || 0).toFixed(2) + 'V';
+    document.getElementById('m_dang').textContent = (j.dangle || 0).toFixed(1);
+    PARAMS.forEach(([k]) => {
+      if (k in j && document.activeElement !== refs[k].r && document.activeElement !== refs[k].n) {
+        refs[k].r.value = j[k]; refs[k].n.value = j[k];
+      }
+    });
+    return j;
+  } catch (e) {
+    document.getElementById('ip').textContent = 'M5 OFFLINE';
+    return null;
+  }
+}
+
+// ════════════ ライブチャート (リングバッファ) ════════════
+const ringBuf = []; // {ms, angle, power}
+const RING_MAX = 200;
+function pushRing(j) {
+  ringBuf.push({ ms: Date.now(), angle: j.angle, power: j.power });
+  if (ringBuf.length > RING_MAX) ringBuf.shift();
+}
+function drawLive() {
+  const cv = document.getElementById('chart');
+  const ctx = cv.getContext('2d');
+  const W = cv.width = cv.clientWidth, H = cv.height;
+  ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+  // grid
+  ctx.strokeStyle = '#30363d'; ctx.lineWidth = 1; ctx.setLineDash([2, 4]);
+  ctx.beginPath();
+  for (let y of [-30, -15, 0, 15, 30]) {
+    const py = H/2 - (y / 50) * (H/2 - 10);
+    ctx.moveTo(0, py); ctx.lineTo(W, py);
+    ctx.fillStyle = '#8b949e'; ctx.font = '10px monospace';
+    ctx.fillText(y + '°', 4, py - 2);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+  if (ringBuf.length < 2) return;
+  // power
+  ctx.strokeStyle = '#bc8cff'; ctx.lineWidth = 1; ctx.beginPath();
+  ringBuf.forEach((s, i) => {
+    const x = (i / (RING_MAX - 1)) * W;
+    const y = H/2 - (s.power / 600) * (H/2 - 10);
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  });
+  ctx.stroke();
+  // angle
+  ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2; ctx.beginPath();
+  ringBuf.forEach((s, i) => {
+    const x = (i / (RING_MAX - 1)) * W;
+    const y = H/2 - (s.angle / 50) * (H/2 - 10);
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  });
+  ctx.stroke();
+}
+
+// ════════════ テストセッション記録 ════════════
+let recording = false;
+let recStart = 0;
+let recSamples = [];
+let recParams = {};
+
+function startTest() {
+  if (recording) return;
+  if (!lastStatus) { alert('M5 接続待ち'); return; }
+  recording = true;
+  recStart = Date.now();
+  recSamples = [];
+  recParams = {};
+  PARAMS.forEach(([k]) => { if (k in lastStatus) recParams[k] = lastStatus[k]; });
+  document.getElementById('recBadge').className = 'badge rec';
+  document.getElementById('recBadge').textContent = 'REC';
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('stopBtn').disabled = false;
+  logmsg('▶ Recording started');
+}
+
+async function stopTest() {
+  if (!recording) return;
+  recording = false;
+  document.getElementById('recBadge').className = 'badge idle';
+  document.getElementById('recBadge').textContent = 'IDLE';
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+  const name = (document.getElementById('testName').value || 'test').trim();
+  const stats = computeStats(recSamples);
+  const data = {
+    name, ts: recStart,
+    duration: recSamples.length ? (recSamples[recSamples.length-1].t) : 0,
+    params: recParams,
+    samples: recSamples,
+    stats,
+  };
+  document.getElementById('recInfo').textContent =
+    `${recSamples.length} samples / ${(data.duration/1000).toFixed(1)}s / max=${stats.max_abs_angle.toFixed(1)}°`;
+  logmsg(`⏹ Stopped: ${recSamples.length} samples, ${data.duration}ms`);
+  // localStorage backup
+  try {
+    const all = JSON.parse(localStorage.getItem('sessions') || '[]');
+    all.push(data); while (all.length > 100) all.shift();
+    localStorage.setItem('sessions', JSON.stringify(all));
+  } catch (e) {}
+  // server save
+  try {
+    const r = await fetch('/api/sessions', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    const j = await r.json();
+    logmsg('💾 Saved as ' + j.id);
+    document.getElementById('testName').value = '';
+    refreshSessions();
+  } catch (e) { logmsg('Save failed: ' + e); }
+}
+
+function computeStats(samples) {
+  if (!samples.length) return { max_abs_angle: 0, fall_dir: 'none' };
+  let max_abs = 0, max_a = 0;
+  let zeroCross = 0, prevSign = 0;
+  for (const s of samples) {
+    const ab = Math.abs(s.angle);
+    if (ab > max_abs) { max_abs = ab; max_a = s.angle; }
+    const sign = s.angle > 1 ? 1 : s.angle < -1 ? -1 : 0;
+    if (sign && prevSign && sign !== prevSign) zeroCross++;
+    if (sign) prevSign = sign;
+  }
+  const last = samples[samples.length - 1].angle;
+  const fall_dir = Math.abs(last) > 20 ? (last > 0 ? 'backward' : 'forward') : 'standing';
+  // oscillation freq estimate from zero crossings
+  const dur_s = samples[samples.length-1].t / 1000;
+  const freq = dur_s > 0 ? (zeroCross / 2 / dur_s) : 0;
+  return { max_abs_angle: max_abs, max_angle: max_a, fall_dir, zero_cross: zeroCross, osc_hz: freq };
+}
+
+// ════════════ メインループ ════════════
+async function tick() {
+  const j = await fetchStatus();
+  if (j) {
+    pushRing(j);
+    if (recording) {
+      const t = Date.now() - recStart;
+      recSamples.push({
+        t, angle: j.angle, dangle: j.dangle, power: j.power,
+        p: j.p_term, d: j.d_term, speed: j.speed,
+      });
+      document.getElementById('recInfo').textContent =
+        `REC: ${recSamples.length} samples / ${(t/1000).toFixed(1)}s`;
+    }
+  }
+  drawLive();
+}
+setInterval(tick, 50); // 20 Hz
+
+// ════════════ セッション一覧 ════════════
+let allSessions = [];
+const selected = new Set();
+async function refreshSessions() {
+  try {
+    const r = await fetch('/api/sessions');
+    allSessions = await r.json();
+    allSessions.sort((a, b) => b.ts - a.ts);
+    const el = document.getElementById('sessions');
+    el.innerHTML = '';
+    if (!allSessions.length) {
+      el.innerHTML = '<div style="padding:10px;color:#8b949e;text-align:center">記録なし</div>';
+      return;
+    }
+    allSessions.forEach(s => {
+      const dt = new Date(s.ts).toLocaleString('ja-JP', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      const fp = s.params || {};
+      const fall = s.fall_dir || 'unknown';
+      const pillCls = fall === 'forward' ? 'fwd' : fall === 'backward' ? 'bwd' : 'ok';
+      const row = document.createElement('div'); row.className = 'session-row';
+      row.innerHTML = `
+        <input type="checkbox" data-id="${s.id}" ${selected.has(s.id)?'checked':''}>
+        <div>
+          <div class="name">${s.name || '(no name)'}</div>
+          <div class="stats">${dt} · ${(s.duration/1000).toFixed(1)}s · max=${(s.max_abs_angle||0).toFixed(1)}° ·
+            kp=${fp.kp} kd=${fp.kd} pneg=${fp.pneg} bias=${fp.bias}</div>
+        </div>
+        <span class="pill ${pillCls}">${fall}</span>
+        <button class="del" data-del="${s.id}" title="削除">✕</button>`;
+      el.appendChild(row);
+    });
+    el.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.onchange = () => {
+        const id = cb.dataset.id;
+        if (cb.checked) {
+          if (selected.size >= 4) { cb.checked = false; alert('最大4つまで'); return; }
+          selected.add(id);
+        } else selected.delete(id);
+        refreshCompare();
+      };
+    });
+    el.querySelectorAll('button[data-del]').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('削除しますか？')) return;
+        await fetch('/api/sessions/' + btn.dataset.del, { method: 'DELETE' });
+        selected.delete(btn.dataset.del);
+        refreshSessions(); refreshCompare();
+      };
+    });
+  } catch (e) { logmsg('Sessions fetch failed: ' + e); }
+}
+
+// ════════════ 比較ビュー ════════════
+const PALETTE = ['#58a6ff', '#bc8cff', '#3fb950', '#d29922'];
+async function refreshCompare() {
+  const cmp = document.getElementById('compare');
+  if (selected.size === 0) { cmp.style.display = 'none'; return; }
+  cmp.style.display = 'block';
+  const items = await Promise.all([...selected].map(async id => {
+    const r = await fetch('/api/sessions/' + id);
+    return await r.json();
+  }));
+  drawCompare(items);
+  drawDiag(items);
+}
+
+function drawCompare(items) {
+  const cv = document.getElementById('compareChart');
+  const ctx = cv.getContext('2d');
+  const W = cv.width = cv.clientWidth, H = cv.height;
+  ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+  const maxT = Math.max(...items.map(it => it.duration || 1), 1);
+  const yScale = 50;
+  // grid
+  ctx.strokeStyle = '#30363d'; ctx.setLineDash([2, 4]); ctx.beginPath();
+  for (let y of [-40, -20, 0, 20, 40]) {
+    const py = H/2 - (y / yScale) * (H/2 - 10);
+    ctx.moveTo(0, py); ctx.lineTo(W, py);
+    ctx.fillStyle = '#8b949e'; ctx.font = '10px monospace';
+    ctx.fillText(y + '°', 4, py - 2);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+  // time axis labels
+  ctx.fillStyle = '#8b949e';
+  for (let i = 0; i <= 4; i++) {
+    const x = (i / 4) * W;
+    ctx.fillText((i * maxT / 4 / 1000).toFixed(1) + 's', x + 2, H - 4);
+  }
+  // lines
+  items.forEach((it, idx) => {
+    ctx.strokeStyle = PALETTE[idx]; ctx.lineWidth = 2; ctx.beginPath();
+    it.samples.forEach((s, i) => {
+      const x = (s.t / maxT) * W;
+      const y = H/2 - (s.angle / yScale) * (H/2 - 10);
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+  });
+  // legend
+  const lg = document.getElementById('legend'); lg.innerHTML = '';
+  items.forEach((it, idx) => {
+    const sp = document.createElement('span');
+    sp.innerHTML = `<i style="background:${PALETTE[idx]}"></i>${it.name}`;
+    lg.appendChild(sp);
+  });
+}
+
+// ════════════ 自動診断 ════════════
+function drawDiag(items) {
+  const body = document.getElementById('diagBody');
+  if (items.length < 1) { body.textContent = 'セッションを選択してください'; return; }
+  const lines = [];
+  items.forEach(it => {
+    const s = it.stats || {};
+    const p = it.params || {};
+    const adv = suggest(s, p);
+    lines.push(`<b>${it.name}</b>: ${s.fall_dir} · max=${(s.max_abs_angle||0).toFixed(1)}° · 持続=${(it.duration/1000).toFixed(1)}s · 振動=${(s.osc_hz||0).toFixed(1)}Hz<br>　→ ${adv}`);
+  });
+  if (items.length >= 2) {
+    lines.push('<hr style="border-color:#30363d;margin:6px 0">');
+    const best = items.reduce((a, b) => (a.duration > b.duration ? a : b));
+    lines.push(`📊 最長持続: <b>${best.name}</b> (${(best.duration/1000).toFixed(1)}s)`);
+  }
+  body.innerHTML = lines.join('<br>');
+}
+
+function suggest(s, p) {
+  const ad = [];
+  if (s.fall_dir === 'forward') {
+    ad.push('前傾倒れ → kd を 0.1 上げる、または bias を -1 する');
+  } else if (s.fall_dir === 'backward') {
+    ad.push('後傾倒れ → pneg を 0.1 上げる、または kd を 0.1 上げる');
+  } else if (s.fall_dir === 'standing') {
+    ad.push('✓ 立っている！別パラメータも試して比較');
+  }
+  if ((s.osc_hz || 0) > 3) ad.push('振動高い → kd を 0.05 下げる');
+  if ((s.max_abs_angle || 0) < 10 && s.fall_dir !== 'standing') ad.push('小角で倒れた → kp が低い、kp +2');
+  if ((s.max_abs_angle || 0) > 30) ad.push('大角まで暴れた → alim を狭める');
+  return ad.length ? ad.join(' / ') : '判定材料不足';
+}
+
+// ════════════ 起動 ════════════
+refreshSessions();
+setInterval(refreshSessions, 10000);
+</script>
+
+</body></html>

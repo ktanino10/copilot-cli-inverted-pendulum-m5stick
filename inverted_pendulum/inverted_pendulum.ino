@@ -12,6 +12,9 @@
 
 #include <M5StickCPlus2.h>
 #include <Kalman.h>
+#include <WiFi.h>
+#include <WebServer.h>
+#include "wifi_config.h"
 
 // ============================================================
 //  ハードウェア設定
@@ -56,6 +59,7 @@ int fil_N = 5;
 //  制御変数
 // ============================================================
 Kalman kalman;
+extern String wifi_ip;
 long lastMs = 0;
 float acc[3], accOffset[3];
 float gyro[3], gyroOffset[3];
@@ -192,51 +196,59 @@ void PID_ctrl() {
 }
 
 // ============================================================
-//  シリアルコマンド
+//  コマンド処理（Serial と WebUI で共通使用）
 // ============================================================
-void processSerial() {
-  if (!Serial.available()) return;
-  String cmd = Serial.readStringUntil('\n');
+String processCommand(String cmd) {
   cmd.trim();
-
+  char buf[160];
   if (cmd == "on") {
     PID_reset();
     setBalanceReference();
     motor_sw = 1;
-    Serial.printf("Motor ON zero po=%.2f bias=%.2f\n", Pitch_offset, targetBias);
+    snprintf(buf, sizeof(buf), "Motor ON zero po=%.2f bias=%.2f", Pitch_offset, targetBias);
   }
   else if (cmd == "off") {
     motor_sw = 0; PID_reset(); servo_stop();
-    Serial.println("Motor OFF");
+    snprintf(buf, sizeof(buf), "Motor OFF");
   }
   else if (cmd == "zero") {
     PID_reset();
     setBalanceReference();
-    Serial.printf("zero po=%.2f bias=%.2f\n", Pitch_offset, targetBias);
+    snprintf(buf, sizeof(buf), "zero po=%.2f bias=%.2f", Pitch_offset, targetBias);
   }
   else if (cmd == "?") {
-    Serial.printf("kp=%.2f ki=%.2f kd=%.2f kspd=%.2f kdst=%.2f kpower=%.4f po=%.2f po2=%.2f bias=%.2f plim=%d ppos=%.2f pneg=%.2f minp=%d minang=%.1f alim=%.1f\n",
+    snprintf(buf, sizeof(buf), "kp=%.2f ki=%.2f kd=%.2f kspd=%.2f kdst=%.2f kpower=%.4f po=%.2f po2=%.2f bias=%.2f plim=%d ppos=%.2f pneg=%.2f minp=%d minang=%.1f alim=%.1f",
       kp, ki, kd, kspd, kdst, kpower, Pitch_offset, Pitch_offset2, targetBias, power_limit, power_pos_scale, power_neg_scale, min_drive_power, min_drive_angle, angle_limit);
-    Serial.printf("Angle=%.1f Pitch=%.1f PF=%.1f\n", Angle, Pitch, Pitch_filter);
-    Serial.printf("acc=%.2f,%.2f,%.2f gyro=%.1f,%.1f,%.1f\n", acc[0], acc[1], acc[2], gyro[0], gyro[1], gyro[2]);
   }
-  else if (cmd.startsWith("kp=")) { kp = cmd.substring(3).toFloat(); Serial.printf("kp=%.2f\n", kp); }
-  else if (cmd.startsWith("ki=")) { ki = cmd.substring(3).toFloat(); Serial.printf("ki=%.2f\n", ki); }
-  else if (cmd.startsWith("kd=")) { kd = cmd.substring(3).toFloat(); Serial.printf("kd=%.2f\n", kd); }
-  else if (cmd.startsWith("kpower=")) { kpower = cmd.substring(7).toFloat(); Serial.printf("kpower=%.4f\n", kpower); }
-  else if (cmd.startsWith("kspd=")) { kspd = cmd.substring(5).toFloat(); Serial.printf("kspd=%.2f\n", kspd); }
-  else if (cmd.startsWith("kdst=")) { kdst = cmd.substring(5).toFloat(); Serial.printf("kdst=%.2f\n", kdst); }
-  else if (cmd.startsWith("po=")) { Pitch_offset = cmd.substring(3).toFloat(); Serial.printf("po=%.2f\n", Pitch_offset); }
-  else if (cmd.startsWith("po2=")) { Pitch_offset2 = cmd.substring(4).toFloat(); Serial.printf("po2=%.2f\n", Pitch_offset2); }
-  else if (cmd.startsWith("bias=")) { targetBias = cmd.substring(5).toFloat(); Serial.printf("bias=%.2f\n", targetBias); }
-  else if (cmd.startsWith("plim=")) { power_limit = cmd.substring(5).toInt(); Serial.printf("plim=%d\n", power_limit); }
-  else if (cmd.startsWith("ppos=")) { power_pos_scale = cmd.substring(5).toFloat(); Serial.printf("ppos=%.2f\n", power_pos_scale); }
-  else if (cmd.startsWith("pneg=")) { power_neg_scale = cmd.substring(5).toFloat(); Serial.printf("pneg=%.2f\n", power_neg_scale); }
-  else if (cmd.startsWith("minp=")) { min_drive_power = cmd.substring(5).toInt(); Serial.printf("minp=%d\n", min_drive_power); }
-  else if (cmd.startsWith("minang=")) { min_drive_angle = cmd.substring(7).toFloat(); Serial.printf("minang=%.1f\n", min_drive_angle); }
-  else if (cmd.startsWith("alim=")) { angle_limit = cmd.substring(5).toFloat(); Serial.printf("alim=%.1f\n", angle_limit); }
-  else if (cmd.startsWith("oL=")) { motor_offsetL = cmd.substring(3).toInt(); Serial.printf("oL=%d\n", motor_offsetL); }
-  else if (cmd.startsWith("oR=")) { motor_offsetR = cmd.substring(3).toInt(); Serial.printf("oR=%d\n", motor_offsetR); }
+  else if (cmd.startsWith("kp=")) { kp = cmd.substring(3).toFloat(); snprintf(buf, sizeof(buf), "kp=%.2f", kp); }
+  else if (cmd.startsWith("ki=")) { ki = cmd.substring(3).toFloat(); snprintf(buf, sizeof(buf), "ki=%.2f", ki); }
+  else if (cmd.startsWith("kd=")) { kd = cmd.substring(3).toFloat(); snprintf(buf, sizeof(buf), "kd=%.2f", kd); }
+  else if (cmd.startsWith("kpower=")) { kpower = cmd.substring(7).toFloat(); snprintf(buf, sizeof(buf), "kpower=%.4f", kpower); }
+  else if (cmd.startsWith("kspd=")) { kspd = cmd.substring(5).toFloat(); snprintf(buf, sizeof(buf), "kspd=%.2f", kspd); }
+  else if (cmd.startsWith("kdst=")) { kdst = cmd.substring(5).toFloat(); snprintf(buf, sizeof(buf), "kdst=%.2f", kdst); }
+  else if (cmd.startsWith("po=")) { Pitch_offset = cmd.substring(3).toFloat(); snprintf(buf, sizeof(buf), "po=%.2f", Pitch_offset); }
+  else if (cmd.startsWith("po2=")) { Pitch_offset2 = cmd.substring(4).toFloat(); snprintf(buf, sizeof(buf), "po2=%.2f", Pitch_offset2); }
+  else if (cmd.startsWith("bias=")) { targetBias = cmd.substring(5).toFloat(); snprintf(buf, sizeof(buf), "bias=%.2f", targetBias); }
+  else if (cmd.startsWith("plim=")) { power_limit = cmd.substring(5).toInt(); snprintf(buf, sizeof(buf), "plim=%d", power_limit); }
+  else if (cmd.startsWith("ppos=")) { power_pos_scale = cmd.substring(5).toFloat(); snprintf(buf, sizeof(buf), "ppos=%.2f", power_pos_scale); }
+  else if (cmd.startsWith("pneg=")) { power_neg_scale = cmd.substring(5).toFloat(); snprintf(buf, sizeof(buf), "pneg=%.2f", power_neg_scale); }
+  else if (cmd.startsWith("minp=")) { min_drive_power = cmd.substring(5).toInt(); snprintf(buf, sizeof(buf), "minp=%d", min_drive_power); }
+  else if (cmd.startsWith("minang=")) { min_drive_angle = cmd.substring(7).toFloat(); snprintf(buf, sizeof(buf), "minang=%.1f", min_drive_angle); }
+  else if (cmd.startsWith("alim=")) { angle_limit = cmd.substring(5).toFloat(); snprintf(buf, sizeof(buf), "alim=%.1f", angle_limit); }
+  else if (cmd.startsWith("oL=")) { motor_offsetL = cmd.substring(3).toInt(); snprintf(buf, sizeof(buf), "oL=%d", motor_offsetL); }
+  else if (cmd.startsWith("oR=")) { motor_offsetR = cmd.substring(3).toInt(); snprintf(buf, sizeof(buf), "oR=%d", motor_offsetR); }
+  else { snprintf(buf, sizeof(buf), "unknown: %s", cmd.c_str()); }
+  return String(buf);
+}
+
+// ============================================================
+//  シリアル入力ラッパー
+// ============================================================
+void processSerial() {
+  if (!Serial.available()) return;
+  String cmd = Serial.readStringUntil('\n');
+  String resp = processCommand(cmd);
+  Serial.println(resp);
 }
 
 // ============================================================
@@ -263,6 +275,144 @@ void updateDisplay() {
   StickCP2.Display.printf("pw=%d L=%d R=%d", power, powerL, powerR);
   StickCP2.Display.setCursor(0, 49);
   StickCP2.Display.printf("po=%.0f po2=%.1f %.1fV", Pitch_offset, Pitch_offset2, batt);
+  if (wifi_ip.length() > 0) {
+    StickCP2.Display.setCursor(0, 61);
+    StickCP2.Display.setTextColor(CYAN);
+    StickCP2.Display.printf("%s", wifi_ip.c_str());
+  }
+}
+
+// ============================================================
+//  Web UI (WiFi + HTTP server)
+// ============================================================
+WebServer server(80);
+String wifi_ip = "";
+
+const char INDEX_HTML[] PROGMEM = R"HTML(
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inverted Pendulum Tuning</title>
+<style>
+body{font-family:-apple-system,sans-serif;margin:0;padding:8px;background:#111;color:#eee;font-size:14px}
+h2{margin:6px 0;font-size:16px;color:#9cf}
+.row{display:flex;align-items:center;margin:4px 0;gap:6px}
+.row label{flex:0 0 60px;font-weight:bold}
+.row input[type=range]{flex:1;min-width:80px}
+.row input[type=number]{width:70px;background:#222;color:#fff;border:1px solid #444;padding:3px;font-size:13px}
+.row .step{flex:0 0 50px}
+button{padding:8px 14px;margin:3px;border:0;border-radius:4px;font-size:14px;font-weight:bold;cursor:pointer}
+.on{background:#0a0;color:#fff}.off{background:#a00;color:#fff}.zero{background:#08c;color:#fff}
+#status{background:#000;border:1px solid #333;padding:6px;font-family:monospace;font-size:12px;white-space:pre;height:90px;overflow:auto}
+.ang{font-size:36px;font-weight:bold;text-align:center;padding:4px;background:#000;border-radius:4px}
+.ang.warn{color:#f80}.ang.err{color:#f00}.ang.ok{color:#0f0}
+</style></head><body>
+<h2>🤖 Inverted Pendulum</h2>
+<div class="ang" id="ang">--</div>
+<div style="text-align:center">
+<button class="on" onclick="cmd('on')">ON</button>
+<button class="off" onclick="cmd('off')">OFF</button>
+<button class="zero" onclick="cmd('zero')">ZERO</button>
+</div>
+<h2>Gains</h2>
+<div id="ctrls"></div>
+<h2>Log</h2>
+<div id="status"></div>
+<script>
+const PARAMS=[
+ ['kp',  0, 30,  0.5],
+ ['kd',  0,  3,  0.05],
+ ['ki',  0,  5,  0.1],
+ ['kspd',0, 1.0, 0.02],
+ ['ppos',0.5,2.0,0.05],
+ ['pneg',0.5,2.0,0.05],
+ ['bias',-10,10, 0.5],
+ ['alim',10,60, 1],
+ ['plim',100,500,10],
+ ['kpower',0,0.005,0.0001],
+ ['minp', 0, 200, 5],
+ ['po',  -30, 30, 0.5],
+];
+const ct=document.getElementById('ctrls');
+const refs={};
+PARAMS.forEach(([k,mn,mx,st])=>{
+  const d=document.createElement('div'); d.className='row';
+  d.innerHTML=`<label>${k}</label><input type="range" min="${mn}" max="${mx}" step="${st}" id="r_${k}"><input type="number" min="${mn}" max="${mx}" step="${st}" id="n_${k}">`;
+  ct.appendChild(d);
+  const r=d.querySelector('#r_'+k), n=d.querySelector('#n_'+k);
+  refs[k]={r,n};
+  const send=v=>{n.value=v;r.value=v;cmd(`${k}=${v}`)};
+  r.oninput=e=>send(parseFloat(e.target.value));
+  n.onchange=e=>send(parseFloat(e.target.value));
+});
+const log=document.getElementById('status');
+function append(s){log.textContent=(s+"\n"+log.textContent).slice(0,2000)}
+async function cmd(c){
+  try{
+    const r=await fetch('/c?q='+encodeURIComponent(c));
+    const t=await r.text();
+    append('> '+c+' → '+t);
+    if(c==='?'||c==='on'||c==='off'||c==='zero')await refresh();
+  }catch(e){append('ERR '+e)}
+}
+async function refresh(){
+  try{
+    const r=await fetch('/s'); const j=await r.json();
+    const a=document.getElementById('ang');
+    a.textContent=j.angle.toFixed(1)+'°';
+    a.className='ang '+(Math.abs(j.angle)<5?'ok':Math.abs(j.angle)<15?'warn':'err');
+    PARAMS.forEach(([k])=>{
+      if(k in j){refs[k].r.value=j[k];refs[k].n.value=j[k];}
+    });
+  }catch(e){}
+}
+setInterval(refresh,250); refresh();
+</script></body></html>
+)HTML";
+
+void handleRoot()    { server.send_P(200, "text/html", INDEX_HTML); }
+
+void handleCmd() {
+  String q = server.arg("q");
+  String resp = processCommand(q);
+  server.send(200, "text/plain", resp);
+}
+
+void handleStatus() {
+  char j[600];
+  snprintf(j, sizeof(j),
+    "{\"angle\":%.2f,\"dangle\":%.2f,\"power\":%d,\"on\":%d,"
+    "\"p_term\":%.2f,\"i_term\":%.2f,\"d_term\":%.2f,\"speed\":%.2f,"
+    "\"kp\":%.2f,\"kd\":%.2f,\"ki\":%.2f,\"kspd\":%.3f,"
+    "\"ppos\":%.2f,\"pneg\":%.2f,\"bias\":%.2f,\"alim\":%.1f,"
+    "\"plim\":%d,\"kpower\":%.4f,\"minp\":%d,\"po\":%.2f,\"batt\":%.2f,"
+    "\"ms\":%lu}",
+    Angle, dAngle, power, motor_sw,
+    P_Angle, I_Angle, D_Angle, Speed,
+    kp, kd, ki, kspd,
+    power_pos_scale, power_neg_scale, targetBias, angle_limit,
+    power_limit, kpower, min_drive_power, Pitch_offset, batt,
+    millis());
+  server.send(200, "application/json", j);
+}
+
+void setupWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.printf("WiFi connecting to %s", WIFI_SSID);
+  unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 10000) {
+    delay(250); Serial.print(".");
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    wifi_ip = WiFi.localIP().toString();
+    Serial.printf("\nWiFi OK: http://%s/\n", wifi_ip.c_str());
+    server.on("/", handleRoot);
+    server.on("/c", handleCmd);
+    server.on("/s", handleStatus);
+    server.begin();
+  } else {
+    wifi_ip = "WiFi FAIL";
+    Serial.println("\nWiFi failed (continuing without web UI)");
+  }
 }
 
 // ============================================================
@@ -295,6 +445,8 @@ void setup() {
   servo_stop();
   ms10 = ms100 = ms1000 = millis();
 
+  setupWiFi();
+
   Serial.println("=== Inverted Pendulum v3 (n_shinichi aligned) ===");
   Serial.printf("kp=%.2f ki=%.2f kd=%.2f po=%.0f\n", kp, ki, kd, Pitch_offset);
   Serial.println("Commands: kp= kd= ki= po= po2= bias= zero on off ?");
@@ -307,6 +459,7 @@ void loop() {
   get_Angle();
 
   processSerial();
+  server.handleClient();
 
   // 10ms制御ループ（n_shinichi氏と同じ）
   if (millis() > ms10) {
