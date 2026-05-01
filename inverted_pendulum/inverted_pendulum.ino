@@ -14,7 +14,28 @@
 #include <Kalman.h>
 #include <WiFi.h>
 #include <WebServer.h>
+
+// ─── WiFi network table ─────────────────────────────────────────────
+// Defined here so wifi_config.h can reference IpsWifiNet when the
+// optional IPS_WIFI_HAS_LIST form is used.
+struct IpsWifiNet { const char* ssid; const char* pass; };
+
 #include "wifi_config.h"
+
+// Fallback to the legacy single-SSID form if the user didn't define a
+// multi-SSID list. Either form works.
+#ifndef IPS_WIFI_HAS_LIST
+  static const IpsWifiNet IPS_WIFI_LIST[] = { {WIFI_SSID, WIFI_PASS} };
+#endif
+static const size_t IPS_WIFI_LIST_LEN = sizeof(IPS_WIFI_LIST) / sizeof(IPS_WIFI_LIST[0]);
+
+// Soft-AP fallback identifiers — used when no known SSID is in range.
+#ifndef IPS_AP_SSID
+  #define IPS_AP_SSID "IPS-CTRL"
+#endif
+#ifndef IPS_AP_PASS
+  #define IPS_AP_PASS "ips12345"
+#endif
 
 // ============================================================
 //  ハードウェア設定
@@ -60,6 +81,7 @@ int fil_N = 5;
 // ============================================================
 Kalman kalman;
 extern String wifi_ip;
+extern String wifi_ssid_in_use;
 long lastMs = 0;
 float acc[3], accOffset[3];
 float gyro[3], gyroOffset[3];
@@ -278,7 +300,12 @@ void updateDisplay() {
   if (wifi_ip.length() > 0) {
     StickCP2.Display.setCursor(0, 61);
     StickCP2.Display.setTextColor(CYAN);
-    StickCP2.Display.printf("%s", wifi_ip.c_str());
+    if (wifi_ssid_in_use.length() > 0) {
+      // Show SSID (first 12 chars) + IP — vital when moving between locations.
+      StickCP2.Display.printf("%s %s", wifi_ssid_in_use.substring(0, 12).c_str(), wifi_ip.c_str());
+    } else {
+      StickCP2.Display.printf("%s", wifi_ip.c_str());
+    }
   }
 }
 
@@ -287,6 +314,7 @@ void updateDisplay() {
 // ============================================================
 WebServer server(80);
 String wifi_ip = "";
+String wifi_ssid_in_use = "";
 
 const char INDEX_HTML[] PROGMEM = R"HTML(
 <!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -394,24 +422,86 @@ void handleStatus() {
   server.send(200, "application/json", j);
 }
 
-void setupWiFi() {
+// ─── WiFi: try every configured network, then fall back to soft-AP ──
+// This makes the device portable: bring it to the office, the firmware
+// will automatically try your phone hotspot SSID; if nothing is in
+// range, it starts its own AP at http://192.168.4.1/ so you can still
+// reach the UI from a laptop with zero infrastructure.
+static bool tryConnect(const char* ssid, const char* pass, uint32_t timeout_ms) {
+  Serial.printf("WiFi → trying \"%s\" ", ssid);
+  WiFi.disconnect(true, true);
+  delay(50);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.printf("WiFi connecting to %s", WIFI_SSID);
-  unsigned long t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 10000) {
-    delay(250); Serial.print(".");
+  WiFi.begin(ssid, pass);
+  uint32_t t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < timeout_ms) {
+    delay(200);
+    Serial.print(".");
   }
   if (WiFi.status() == WL_CONNECTED) {
-    wifi_ip = WiFi.localIP().toString();
-    Serial.printf("\nWiFi OK: http://%s/\n", wifi_ip.c_str());
+    Serial.printf(" OK (%lu ms)\n", millis() - t0);
+    return true;
+  }
+  Serial.println(" timed out");
+  return false;
+}
+
+static void startAccessPoint() {
+  WiFi.disconnect(true, true);
+  delay(50);
+  WiFi.mode(WIFI_AP);
+  bool ok = WiFi.softAP(IPS_AP_SSID, IPS_AP_PASS);
+  if (ok) {
+    wifi_ssid_in_use = String(IPS_AP_SSID) + " (AP)";
+    wifi_ip = WiFi.softAPIP().toString();
+    Serial.printf("WiFi: started soft-AP \"%s\" pass=\"%s\" → http://%s/\n",
+                  IPS_AP_SSID, IPS_AP_PASS, wifi_ip.c_str());
+  } else {
+    wifi_ssid_in_use = "";
+    wifi_ip = "AP FAIL";
+    Serial.println("WiFi: soft-AP start FAILED");
+  }
+}
+
+void setupWiFi() {
+  WiFi.mode(WIFI_STA);
+  // Scan first so we only attempt SSIDs that are actually in range —
+  // avoids wasting the full timeout on networks that aren't there.
+  Serial.println("WiFi: scanning...");
+  int n = WiFi.scanNetworks(false, false, false, 200);
+  Serial.printf("WiFi: %d networks visible\n", n);
+
+  bool connected = false;
+  for (size_t i = 0; i < IPS_WIFI_LIST_LEN && !connected; ++i) {
+    const char* ssid = IPS_WIFI_LIST[i].ssid;
+    const char* pass = IPS_WIFI_LIST[i].pass;
+    bool inRange = (n <= 0);  // if scan failed/empty, just try blindly
+    for (int j = 0; j < n; ++j) {
+      if (WiFi.SSID(j) == ssid) { inRange = true; break; }
+    }
+    if (!inRange) {
+      Serial.printf("WiFi → \"%s\" not visible, skipping\n", ssid);
+      continue;
+    }
+    if (tryConnect(ssid, pass, 8000)) {
+      wifi_ssid_in_use = ssid;
+      wifi_ip = WiFi.localIP().toString();
+      Serial.printf("WiFi OK: SSID=\"%s\"  http://%s/\n",
+                    wifi_ssid_in_use.c_str(), wifi_ip.c_str());
+      connected = true;
+    }
+  }
+
+  if (!connected) {
+    Serial.println("WiFi: no known network reachable — falling back to AP mode");
+    startAccessPoint();
+  }
+
+  if (wifi_ip.length() > 0 && wifi_ip != "AP FAIL") {
     server.on("/", handleRoot);
     server.on("/c", handleCmd);
     server.on("/s", handleStatus);
     server.begin();
-  } else {
-    wifi_ip = "WiFi FAIL";
-    Serial.println("\nWiFi failed (continuing without web UI)");
   }
 }
 

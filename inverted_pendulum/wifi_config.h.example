@@ -1,5 +1,38 @@
-// WiFi credentials — copy to wifi_config.h and edit
-// wifi_config.h is git-ignored so credentials are not committed.
+// WiFi credentials — copy this file to wifi_config.h and edit.
+// wifi_config.h is git-ignored so credentials are never committed.
+//
+// ─── Two ways to configure ──────────────────────────────────────────
+//
+// (A) SIMPLE — one network only (legacy form, still supported):
+//
+//     #define WIFI_SSID "YOUR_SSID_HERE"
+//     #define WIFI_PASS "YOUR_PASSWORD_HERE"
+//
+// (B) PORTABLE — multiple networks tried in order. Recommended if you
+//     ever move the device between locations (home, phone hotspot,
+//     office, etc). The firmware scans for available SSIDs and joins
+//     the first match in this list:
+//
+//     #define IPS_WIFI_HAS_LIST
+//     static const IpsWifiNet IPS_WIFI_LIST[] = {
+//       {"home_2g",        "home_password"},
+//       {"my_iphone_hot",  "phone_password"},   // tether from your phone
+//       {"office_guest",   "office_password"},
+//     };
+//
+// ─── Soft-AP fallback ───────────────────────────────────────────────
+// If NONE of the networks above are reachable, the device starts its
+// own WiFi access point so you can always reach it from a laptop:
+//
+//     SSID: IPS-CTRL          (override with IPS_AP_SSID)
+//     PASS: ips12345          (override with IPS_AP_PASS, 8+ chars)
+//     URL : http://192.168.4.1/
+//
+// Override here if you want a different name/password:
+//   #define IPS_AP_SSID "my-pendulum"
+//   #define IPS_AP_PASS "supersecret"
+//
 #pragma once
 #define WIFI_SSID "YOUR_SSID_HERE"
 #define WIFI_PASS "YOUR_PASSWORD_HERE"
+

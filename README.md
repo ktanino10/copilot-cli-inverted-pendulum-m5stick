@@ -136,6 +136,56 @@ float kdst = 0.14;
 
 理論や基礎の話は、実験ログより先に読めるようにここへまとめる。
 
+### 🌍 持ち運び・遠隔運用 — どこででもすぐ起動する方法
+
+倒立振子を**自宅・オフィス・出先**で動かしたいときの実用的な選択肢を、
+おすすめ順にまとめる。すべてファームウェア／UIに既に組み込み済み。
+
+| # | シナリオ | 使い方 | 必要なもの | 備考 |
+|---|---|---|---|---|
+| **A** | **マルチSSID**（推奨） | `wifi_config.h` に複数のSSIDを並べておくだけで、起動時にスキャンして電波が入っているものへ自動接続 | `wifi_config.h` 編集のみ | 一度書き込めば、家・オフィス・スマホテザリングを自動切替。設定例は `wifi_config.h.example` 参照 |
+| **B** | **ソフトAPフォールバック** | どの既知SSIDも見えないとき、M5自身が `IPS-CTRL`（pass: `ips12345`） というWiFiアクセスポイントを立ち上げる。ノートPC/スマホでそのSSIDに繋ぎ、`http://192.168.4.1/` を開くだけ | M5本体だけ／ルータ不要 | カフェ・電車・社外プレゼンなど、信用できないWiFi環境でも完全独立で動く |
+| **C** | **スマホテザリング** | iPhone/Android のテザリングSSID/パスワードを `IPS_WIFI_LIST` に登録 → どこへ行ってもスマホONでM5が自動接続 | スマホ + データプラン | 同じテザリング下でPC側も繋げばUIアクセス可 |
+| **D** | **遠隔（オフィスから自宅のM5を操作）** | 自宅PCで `tools/server.py` を起動 → [Tailscale](https://tailscale.com/) などのVPNを自宅PCとオフィスPCで共有 → オフィスから `http://<自宅PCのTailscale IP>:5000/` でアクセス | 自宅PC常時起動 + Tailscale (無料枠OK) | 動画を別カメラで配信すれば本当に遠隔チューニングが可能 |
+| **E** | **GitHub Pages デモ** | ハードウェアを持っていない人にUIを見せたいとき。`https://<owner>.github.io/inverted-pendulum-m5stick/` で**シミュレートされたデバイス**と統計解析画面が動く | 何も不要 | `tools/build_demo.py` で自動生成。`docs/demo/` を Pages 公開設定に |
+
+#### `wifi_config.h` のマルチSSID設定例
+
+```cpp
+#pragma once
+
+// (B) PORTABLE 形式 — 上から順に試す
+#define IPS_WIFI_HAS_LIST
+static const IpsWifiNet IPS_WIFI_LIST[] = {
+  {"home_2g",       "home_password"},
+  {"my_iphone_hot", "phone_password"},   // テザリング
+  {"office_guest",  "office_password"},
+};
+
+// 既知SSIDが全部圏外なら自動でAP起動（ここはお好みで上書き）
+// #define IPS_AP_SSID "my-pendulum"
+// #define IPS_AP_PASS "supersecret"
+```
+
+#### LCDの表示
+
+接続後、M5の画面下段に **`SSID IP`** が表示される（例: `home_2g 192.168.10.32`）。
+APフォールバックに落ちた場合は **`IPS-CTRL (AP) 192.168.4.1`** と出るので、
+ブラウザでその IP を開くだけ。
+
+#### サーバ側の切替
+
+`tools/run_server.sh` 起動時に `M5_URL` で接続先を上書きする：
+
+```bash
+M5_URL=http://192.168.10.32 ./tools/run_server.sh    # 自宅
+M5_URL=http://192.168.4.1   ./tools/run_server.sh    # APモード
+M5_URL=http://172.20.10.5   ./tools/run_server.sh    # iPhoneテザリング
+```
+
+LCDに表示されたIPをそのまま入れればOK。
+
+
 | 資料 | 内容 | 対象 |
 |------|------|------|
 | **[docs/pid_guide.md](docs/pid_guide.md)** | ほうきバランスの例えから、P/I/D の役割、倒立振子への応用、実機での調整手順までをやさしく説明 | 初めてPID制御に触れる人 |
