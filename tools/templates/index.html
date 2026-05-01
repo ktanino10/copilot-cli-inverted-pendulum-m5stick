@@ -326,6 +326,33 @@
   @keyframes introFade{from{opacity:0}}
   @keyframes introPop{from{transform:scale(.4) rotate(-20deg);opacity:0}}
 
+  /* Ducky language splash overlay */
+  #langSplash{
+    position:fixed;inset:0;z-index:9998;background:radial-gradient(circle at center,rgba(255,176,0,.28),rgba(0,0,0,.92) 70%);
+    display:none;align-items:center;justify-content:center;flex-direction:column;gap:20px;
+    backdrop-filter:blur(4px);pointer-events:none;
+  }
+  #langSplash.show{display:flex;animation:splashIn .35s ease, splashOut .4s 1.4s forwards}
+  #langSplash img{
+    width:280px;height:280px;object-fit:contain;
+    filter:drop-shadow(0 0 30px var(--amber)) drop-shadow(0 0 60px #ff9a00);
+    animation:duckPop .55s cubic-bezier(.2,1.7,.3,1), duckBob 1.2s .5s ease-in-out infinite
+  }
+  #langSplash .lbig{
+    font-family:Orbitron,sans-serif;font-weight:900;color:var(--amber);
+    font-size:54px;letter-spacing:8px;text-shadow:0 0 18px var(--amber),0 0 36px #ff9a00;
+    animation:langZoom .55s cubic-bezier(.2,1.7,.3,1)
+  }
+  #langSplash .lsub{
+    font-family:'Share Tech Mono',monospace;color:#ffe0a0;font-size:14px;letter-spacing:4px;
+    animation:langZoom .7s cubic-bezier(.2,1.7,.3,1)
+  }
+  @keyframes splashIn{from{opacity:0}}
+  @keyframes splashOut{to{opacity:0;visibility:hidden}}
+  @keyframes duckPop{from{transform:scale(.3) rotate(-25deg);opacity:0}}
+  @keyframes duckBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  @keyframes langZoom{from{transform:scale(.6);opacity:0}}
+
   /* github mark on boot */
   #boot .gh-boot{width:80px;height:80px;margin-bottom:14px;
     filter:brightness(0) invert(1) drop-shadow(0 0 14px var(--cyan));animation:spin 8s linear infinite}
@@ -389,6 +416,13 @@
   <img src="/assets/copilot.gif" alt="Copilot">
   <div class="ititle"><span data-en="LAUNCHING ANALYTICS" data-jp="解析モード起動中"></span></div>
   <div class="isub"><span data-en="COPILOT IS PREPARING THE DATA..." data-jp="Copilot がデータを準備しています..."></span></div>
+</div>
+
+<!-- Ducky language splash overlay -->
+<div id="langSplash" aria-hidden="true">
+  <img src="/assets/duck.gif" alt="Ducky">
+  <div class="lbig" id="langSplashBig">EN</div>
+  <div class="lsub" id="langSplashSub">ENGLISH MODE</div>
 </div>
 
 <!-- toast notifications -->
@@ -580,8 +614,19 @@ function setLang(lang) {
     const v = el.dataset[lang + 'Ph']; if (v != null) el.placeholder = v;
   });
   try { localStorage.setItem('lang', lang); } catch (e) {}
-  // Ducky toast on language change
-  toast('info', 'duck', lang === 'jp' ? '言語: 日本語モード' : 'LANGUAGE: ENGLISH MODE');
+  // Ducky big center splash
+  showLangSplash(lang);
+}
+function showLangSplash(lang) {
+  const ov = document.getElementById('langSplash');
+  if (!ov) return;
+  document.getElementById('langSplashBig').textContent = lang === 'jp' ? 'JP' : 'EN';
+  document.getElementById('langSplashSub').textContent = lang === 'jp' ? '日本語モード' : 'ENGLISH MODE';
+  ov.classList.remove('show');
+  // force reflow so animation restarts
+  void ov.offsetWidth;
+  ov.classList.add('show');
+  setTimeout(() => ov.classList.remove('show'), 1900);
 }
 (function initLang() {
   let saved = 'en';
