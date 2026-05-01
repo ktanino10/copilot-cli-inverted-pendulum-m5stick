@@ -13,7 +13,7 @@ import requests
 from flask import Flask, jsonify, request, send_from_directory
 
 # ── config ────────────────────────────────────────────────────────────
-M5_BASE = os.environ.get("M5_URL", "http://192.168.10.32")
+M5_BASE = os.environ.get("M5_URL", "http://192.168.4.1")
 PORT    = int(os.environ.get("PORT", 5000))
 ROOT    = Path(__file__).parent
 SESSDIR = ROOT / "data" / "sessions"
