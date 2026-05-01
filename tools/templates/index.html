@@ -35,21 +35,27 @@
   /* ─── TOP BAR ─────────────────────────── */
   header{
     position:relative;display:flex;justify-content:space-between;align-items:center;
-    padding:6px 18px;background:linear-gradient(90deg,#001520,#003044,#001520);
+    padding:8px 18px;background:linear-gradient(90deg,#001520,#003044,#001520);
     border-bottom:2px solid var(--cyan);
     box-shadow:0 0 20px rgba(0,229,255,.4);
-    clip-path:polygon(0 0, 100% 0, 100% 100%, 30px 100%, 22px calc(100% - 8px), 0 calc(100% - 8px));
+  }
+  .brand{display:flex;align-items:center;gap:14px}
+  .octocat{
+    width:54px;height:54px;flex-shrink:0;
+    filter:brightness(0) invert(1) drop-shadow(0 0 10px var(--cyan)) drop-shadow(0 0 20px var(--cyan-d));
+    animation:octofloat 4s ease-in-out infinite;
+  }
+  @keyframes octofloat{
+    0%,100%{transform:translateY(0) rotate(-2deg)}
+    50%{transform:translateY(-3px) rotate(2deg)}
   }
   header h1{
-    font-family:'Orbitron',sans-serif;font-weight:900;font-size:18px;margin:0;
+    font-family:'Orbitron',sans-serif;font-weight:900;font-size:20px;margin:0;
     color:var(--cyan);letter-spacing:.3em;
     text-shadow:0 0 10px var(--cyan), 0 0 20px var(--cyan-d);
-    display:flex;align-items:center;gap:12px;
+    display:flex;flex-direction:column;line-height:1.1;
   }
-  header h1 .gh-mark{
-    width:24px;height:24px;
-    filter:brightness(0) invert(1) drop-shadow(0 0 6px var(--cyan));
-  }
+  header h1 .small{font-size:9px;color:var(--amber);letter-spacing:.18em;margin-top:3px;font-weight:500}
   header h1 .small{font-size:11px;color:var(--amber);letter-spacing:.2em;margin-left:8px}
   .top-status{display:flex;gap:18px;align-items:center;font-size:11px}
   .top-status .pip{display:flex;align-items:center;gap:5px}
@@ -221,28 +227,51 @@
   .bracket.tr{top:4px;right:4px;border-top:2px solid;border-right:2px solid}
   .bracket.bl{bottom:4px;left:4px;border-bottom:2px solid;border-left:2px solid}
   .bracket.br{bottom:4px;right:4px;border-bottom:2px solid;border-right:2px solid}
-  /* mascot floating */
-  .mascot-corner{
-    position:fixed;right:12px;bottom:12px;width:90px;height:90px;z-index:50;
-    pointer-events:none;
-    filter:drop-shadow(0 0 12px rgba(0,229,255,.5));
+  /* mascot system - contextual */
+  .mascot-corner{display:none}  /* removed permanent floating */
+
+  /* contextual mascot in panels */
+  .mascot-inline{width:24px;height:24px;object-fit:contain;vertical-align:middle;
+    filter:drop-shadow(0 0 6px currentColor)}
+  .mascot-md{width:36px;height:36px;object-fit:contain}
+  .mascot-lg{width:48px;height:48px;object-fit:contain}
+
+  /* toast notifications with mascot */
+  #toasts{position:fixed;top:70px;right:14px;z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+  .toast{
+    display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,16,32,.95);
+    border:1px solid var(--cyan);min-width:200px;max-width:320px;
+    box-shadow:0 0 20px rgba(0,229,255,.4);
+    clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
+    animation:slideIn .3s ease, fadeOutToast .4s 3.5s forwards;
+    font-size:12px;font-family:'Share Tech Mono',monospace;
   }
-  .mascot-corner img{width:100%;height:100%;object-fit:contain}
+  .toast.success{border-color:var(--green);box-shadow:0 0 20px rgba(0,255,136,.4);color:var(--green)}
+  .toast.error{border-color:var(--red);box-shadow:0 0 20px rgba(255,44,44,.4);color:var(--red)}
+  .toast.info{border-color:var(--amber);box-shadow:0 0 20px rgba(255,176,0,.4);color:var(--amber)}
+  .toast img{width:42px;height:42px;flex-shrink:0;object-fit:contain;
+    filter:drop-shadow(0 0 8px currentColor)}
+  @keyframes slideIn{from{transform:translateX(100%);opacity:0}}
+  @keyframes fadeOutToast{to{opacity:0;transform:translateX(20px)}}
+
+  /* big mascot in diag depending on best result */
+  .diag-mascot{float:right;width:64px;height:64px;object-fit:contain;
+    margin-left:10px;filter:drop-shadow(0 0 10px currentColor)}
 
   /* github mark on boot */
-  #boot .gh-boot{width:60px;height:60px;margin-bottom:12px;
-    filter:brightness(0) invert(1) drop-shadow(0 0 12px var(--cyan));animation:spin 8s linear infinite}
+  #boot .gh-boot{width:80px;height:80px;margin-bottom:14px;
+    filter:brightness(0) invert(1) drop-shadow(0 0 14px var(--cyan));animation:spin 8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
 
-  /* copilot sticker in diag panel */
-  .diag h3{display:flex;align-items:center;gap:8px}
-  .diag h3 .copilot-icon{width:28px;height:28px;object-fit:contain;
-    filter:drop-shadow(0 0 6px var(--amber))}
+  /* copilot pulsing on REC */
+  .copilot-rec{width:22px;height:22px;object-fit:contain;vertical-align:middle;
+    margin-right:6px;animation:pulse-soft 1.5s infinite;display:none}
+  .copilot-rec.active{display:inline-block}
+  @keyframes pulse-soft{50%{opacity:.5;transform:scale(.9)}}
 
-  /* duck on slider panel */
-  .duck-deco{position:absolute;top:-6px;right:-6px;width:50px;height:50px;
-    pointer-events:none;z-index:5;filter:drop-shadow(0 0 8px rgba(255,176,0,.6))}
-  .duck-deco img{width:100%;height:100%;object-fit:contain}
+  /* session row mascot indicator */
+  .session-row .out-mascot{width:24px;height:24px;object-fit:contain;flex-shrink:0;
+    filter:drop-shadow(0 0 4px currentColor)}
 
   /* footer credit */
   .credit{text-align:center;padding:14px 0 30px;font-size:10px;color:#3a5a7a;
@@ -269,7 +298,10 @@
 
 <!-- ══════════ TOP STATUS BAR ══════════ -->
 <header>
-  <h1><img src="/assets/github-mark.png" class="gh-mark" alt="GH">IPS COMMAND<span class="small">INVERTED PENDULUM CONTROL SYSTEM</span></h1>
+  <div class="brand">
+    <img src="/assets/github-mark.png" class="octocat" alt="Octocat">
+    <h1>IPS COMMAND<span class="small">INVERTED PENDULUM CONTROL SYSTEM</span></h1>
+  </div>
   <div class="top-status">
     <div class="pip"><div class="led" id="led_link"></div>LINK</div>
     <div class="pip"><div class="led off" id="led_motor"></div>MOTOR</div>
@@ -278,6 +310,9 @@
     <div id="clock">--:--:--</div>
   </div>
 </header>
+
+<!-- toast notifications -->
+<div id="toasts"></div>
 
 <!-- ══════════ MAIN GRID ══════════ -->
 <div class="grid">
@@ -304,8 +339,8 @@
         <div class="cell"><div class="lbl">D-TERM</div><div class="val" id="m_d">---</div></div>
       </div>
       <div class="btnrow">
-        <button class="btn on" onclick="cmd('on')">▶ ENGAGE</button>
-        <button class="btn off" onclick="cmd('off')">■ ABORT</button>
+        <button class="btn on" onclick="cmd('on')">▶ MOTOR ON</button>
+        <button class="btn off" onclick="cmd('off')">■ MOTOR OFF</button>
         <button class="btn amber" onclick="cmd('zero')">⊘ CALIB</button>
       </div>
     </div>
@@ -313,9 +348,9 @@
     <!-- TEST RECORDER -->
     <div class="panel" style="margin-top:10px">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
-      <div class="panel-h"><span>▶ COMBAT RECORDER / 戦闘記録</span><span class="badge" id="recBadge">STANDBY</span></div>
+      <div class="panel-h"><span>▶ TEST RECORDER / テスト記録</span><span class="badge" id="recBadge"><img src="/assets/copilot.gif" class="copilot-rec" id="copilotRec">STANDBY</span></div>
       <div class="rec-row">
-        <input id="testName" placeholder="OPERATION CODENAME (e.g. KP18_KD05)">
+        <input id="testName" placeholder="TEST NAME (e.g. KP18_KD05)">
         <button class="btn purple" id="startBtn" onclick="startTest()">▶ REC</button>
         <button class="btn off" id="stopBtn" onclick="stopTest()" disabled>⏹ END</button>
       </div>
@@ -336,7 +371,6 @@
     <!-- GAINS -->
     <div class="panel">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
-      <span class="duck-deco"><img src="/assets/duck.gif" alt="Duck"></span>
       <div class="panel-h"><span>▶ CONTROL PARAMETERS / 制御変数</span><span class="tag">[PID-MOD]</span></div>
       <div class="sliders" id="sliders"></div>
     </div>
@@ -344,27 +378,24 @@
     <!-- SESSIONS -->
     <div class="panel" style="margin-top:10px">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
-      <div class="panel-h"><span>▶ MISSION ARCHIVE / 戦闘記録一覧</span><span class="tag">[MAX 4 SEL]</span></div>
+      <div class="panel-h"><span>▶ TEST ARCHIVE / 記録一覧</span><span class="tag">[MAX 4 SEL]</span></div>
       <div class="session-list" id="sessions"></div>
     </div>
 
     <!-- COMPARE -->
     <div class="panel" id="compare" style="margin-top:10px;display:none">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
-      <div class="panel-h"><span>▶ TACTICAL ANALYSIS / 戦術解析</span><span class="tag">[CMP]</span></div>
+      <div class="panel-h"><span>▶ COMPARISON ANALYSIS / 比較解析</span><span class="tag">[CMP]</span></div>
       <canvas id="compareChart" width="600" height="240"></canvas>
       <div class="legend" id="legend"></div>
       <div class="diag">
-        <h3><img src="/assets/copilot.gif" class="copilot-icon" alt="Copilot"> COPILOT AI DIAGNOSTIC</h3>
+        <h3><img src="/assets/copilot.gif" class="mascot-inline" style="filter:drop-shadow(0 0 6px var(--amber))" alt="Copilot"> COPILOT AI DIAGNOSTIC</h3>
         <div id="diagBody">> AWAITING SAMPLE DATA...</div>
       </div>
     </div>
   </div>
 
 </div>
-
-<!-- floating mascot -->
-<div class="mascot-corner"><img src="/assets/mascot.gif" alt="Mona"></div>
 
 <!-- footer credit -->
 <div class="credit">
@@ -429,6 +460,18 @@ function logmsg(s, cls) {
   line.textContent = `[${t}] ${s}`;
   logEl.insertBefore(line, logEl.firstChild);
   while (logEl.children.length > 80) logEl.removeChild(logEl.lastChild);
+}
+const MASCOT_FILE = { mona: 'mascot.gif', copilot: 'copilot.gif', duck: 'duck.gif', octocat: 'github-mark.png' };
+function toast(type, mascot, msg) {
+  const host = document.getElementById('toasts');
+  if (!host) return;
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type || 'info');
+  const file = MASCOT_FILE[mascot] || MASCOT_FILE.copilot;
+  t.innerHTML = `<img src="/assets/${file}" alt="${mascot}"><span>${msg}</span>`;
+  host.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; }, 3500);
+  setTimeout(() => { t.remove(); }, 4200);
 }
 async function cmd(c) {
   try {
@@ -523,21 +566,22 @@ function drawLive() {
 let recording = false, recStart = 0, recSamples = [], recParams = {};
 function startTest() {
   if (recording) return;
-  if (!lastStatus) { logmsg('✕ NO LINK TO MS', 'err'); return; }
+  if (!lastStatus) { logmsg('✕ NO LINK TO DEVICE', 'err'); toast('error', 'duck', 'NO LINK TO DEVICE'); return; }
   recording = true; recStart = Date.now(); recSamples = []; recParams = {};
   PARAMS.forEach(([k]) => { if (k in lastStatus) recParams[k] = lastStatus[k]; });
-  const b = document.getElementById('recBadge'); b.className = 'badge rec'; b.textContent = '● REC';
+  const b = document.getElementById('recBadge'); b.className = 'badge rec';
+  b.innerHTML = '<img src="/assets/copilot.gif" class="copilot-rec active">● REC';
   document.getElementById('startBtn').disabled = true;
   document.getElementById('stopBtn').disabled = false;
-  logmsg('▶ COMBAT RECORDER ARMED', 'warn');
+  logmsg('▶ RECORDER STARTED', 'warn');
 }
 async function stopTest() {
   if (!recording) return;
   recording = false;
-  const b = document.getElementById('recBadge'); b.className = 'badge'; b.textContent = 'STANDBY';
+  const b = document.getElementById('recBadge'); b.className = 'badge'; b.innerHTML = 'STANDBY';
   document.getElementById('startBtn').disabled = false;
   document.getElementById('stopBtn').disabled = true;
-  const name = (document.getElementById('testName').value || 'mission').trim();
+  const name = (document.getElementById('testName').value || 'test').trim();
   const stats = computeStats(recSamples);
   const data = {
     name, ts: recStart,
@@ -546,7 +590,7 @@ async function stopTest() {
   };
   document.getElementById('recInfo').textContent =
     `> ${recSamples.length} samples / ${(data.duration/1000).toFixed(1)}s / ∠max=${stats.max_abs_angle.toFixed(1)}° / fall=${stats.fall_dir}`;
-  logmsg(`⏹ MISSION ENDED: ${recSamples.length} pts, ${(data.duration/1000).toFixed(1)}s`, 'ok');
+  logmsg(`⏹ TEST ENDED: ${recSamples.length} pts, ${(data.duration/1000).toFixed(1)}s`, 'ok');
   try {
     const all = JSON.parse(localStorage.getItem('sessions') || '[]');
     all.push(data); while (all.length > 100) all.shift();
@@ -555,10 +599,18 @@ async function stopTest() {
   try {
     const r = await fetch('/api/sessions', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
     const j = await r.json();
-    logmsg('💾 ARCHIVED → ' + j.id, 'ok');
+    logmsg('💾 SAVED → ' + j.id, 'ok');
+    // contextual mascot toast based on outcome
+    if (stats.fall_dir === 'standing') {
+      toast('success', 'mona', `SAVED · STANDING ✓ ${(data.duration/1000).toFixed(1)}s`);
+    } else if (data.duration < 2000) {
+      toast('error', 'duck', `SAVED · QUICK FALL ${(data.duration/1000).toFixed(1)}s — DEBUG NEEDED`);
+    } else {
+      toast('info', 'copilot', `SAVED · ${stats.fall_dir.toUpperCase()} @ ${(data.duration/1000).toFixed(1)}s`);
+    }
     document.getElementById('testName').value = '';
     refreshSessions();
-  } catch (e) { logmsg('✕ ARCHIVE FAILED: ' + e, 'err'); }
+  } catch (e) { logmsg('✕ SAVE FAILED: ' + e, 'err'); toast('error', 'duck', 'SAVE FAILED'); }
 }
 function computeStats(samples) {
   if (!samples.length) return { max_abs_angle: 0, fall_dir: 'none' };
@@ -631,7 +683,7 @@ async function refreshSessions() {
     });
     el.querySelectorAll('button[data-del]').forEach(btn => {
       btn.onclick = async () => {
-        if (!confirm('DELETE THIS MISSION RECORD?')) return;
+        if (!confirm('DELETE THIS TEST RECORD?')) return;
         await fetch('/api/sessions/' + btn.dataset.del, { method: 'DELETE' });
         selected.delete(btn.dataset.del);
         refreshSessions(); refreshCompare();
@@ -695,15 +747,23 @@ function drawCompare(items) {
 function drawDiag(items) {
   const body = document.getElementById('diagBody');
   if (items.length < 1) { body.textContent = '> AWAITING SAMPLE DATA...'; return; }
-  const lines = [];
+  // pick a leading mascot for this diagnostic batch
+  const best = items.reduce((a, b) => (a.duration > b.duration ? a : b));
+  const bestStanding = (best.stats || {}).fall_dir === 'standing';
+  const anyQuickFall = items.some(it => it.duration < 2000);
+  let leadMascot = 'copilot';
+  if (bestStanding) leadMascot = 'mona';
+  else if (anyQuickFall) leadMascot = 'duck';
+  const mascotImg = `<img src="/assets/${leadMascot === 'mona' ? 'mascot' : leadMascot}.gif" class="diag-mascot" alt="${leadMascot}">`;
+  const lines = [mascotImg];
   items.forEach(it => {
     const s = it.stats || {}; const adv = suggest(s, it.params || {});
-    lines.push(`▸ <b>${it.name}</b><br>　FALL: ${(s.fall_dir||'?').toUpperCase()} · MAX∠=${(s.max_abs_angle||0).toFixed(1)}° · DUR=${(it.duration/1000).toFixed(1)}s · OSC=${(s.osc_hz||0).toFixed(1)}Hz<br>　▶ ${adv}`);
+    const icon = (s.fall_dir === 'standing') ? '🐙' : (it.duration < 2000 ? '🦆' : '🤖');
+    lines.push(`${icon} <b>${it.name}</b><br>　FALL: ${(s.fall_dir||'?').toUpperCase()} · MAX∠=${(s.max_abs_angle||0).toFixed(1)}° · DUR=${(it.duration/1000).toFixed(1)}s · OSC=${(s.osc_hz||0).toFixed(1)}Hz<br>　▶ ${adv}`);
   });
   if (items.length >= 2) {
     lines.push('<hr>');
-    const best = items.reduce((a, b) => (a.duration > b.duration ? a : b));
-    lines.push(`◆ LONGEST SURVIVAL: <b>${best.name}</b> (${(best.duration/1000).toFixed(1)}s)`);
+    lines.push(`◆ LONGEST DURATION: <b>${best.name}</b> (${(best.duration/1000).toFixed(1)}s)`);
   }
   body.innerHTML = lines.join('<br>');
 }
