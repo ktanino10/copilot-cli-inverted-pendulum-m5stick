@@ -62,6 +62,9 @@ def list_sessions():
                 "samples":  len(d.get("samples", [])),
                 "max_abs_angle": d.get("stats", {}).get("max_abs_angle"),
                 "fall_dir": d.get("stats", {}).get("fall_dir"),
+                "green_ratio": d.get("stats", {}).get("green_ratio"),
+                "mean_abs_angle": d.get("stats", {}).get("mean_abs_angle"),
+                "score":    d.get("stats", {}).get("score"),
                 "params":   d.get("params", {}),
             })
         except Exception:

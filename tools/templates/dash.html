@@ -246,6 +246,7 @@ body.lang-jp [data-jp]::before{content:attr(data-jp)}
         <button class="abtn" onclick="runAnalysis('contrib')"><span class="ttl"><span data-en="P/D CONTRIB" data-jp="P/D寄与度"></span></span><span class="desc" data-en="P vs D term contribution" data-jp="P項とD項の寄与度"></span></button>
         <button class="abtn" onclick="runAnalysis('suggest')"><span class="ttl"><span data-en="SUGGEST PARAMS" data-jp="次の設定案"></span></span><span class="desc" data-en="next params to try" data-jp="次に試すパラメータ"></span></button>
         <button class="abtn" onclick="runAnalysis('optimal')" style="border-color:var(--green)"><span class="ttl" style="color:var(--green)"><span data-en="OPTIMAL → GREEN" data-jp="最適化 → 緑"></span></span><span class="desc" data-en="regress params, predict optimum (CI/heatmap)" data-jp="緑帯滞在を最大化する数値を回帰で特定 (誤差棒/ヒート)"></span></button>
+        <button class="abtn" onclick="runAnalysis('statslab')" style="border-color:var(--cyan)"><span class="ttl" style="color:var(--cyan)"><span data-en="STATS LAB" data-jp="統計ラボ"></span></span><span class="desc" data-en="histograms 1D/2D/3D, correlations, RBF grid search → green" data-jp="1D/2D/3Dヒスト, 相関行列, RBFグリッド探索 → 緑"></span></button>
       </div>
       <div class="aresult" id="aResult">
         <div class="empty"><span data-en="pick an analysis above" data-jp="上のボタンから解析を選択"></span></div>
@@ -1197,7 +1198,478 @@ const ANALYZERS = {
     }
     return html;
   },
+
+  // ───── 9. STATS LAB (1D/2D/3D ヒスト + 相関行列 + RBF グリッド探索) ─────
+  statslab(items) {
+    const isJp = document.body.classList.contains('lang-jp');
+    const t = (jp, en) => isJp ? jp : en;
+    let html = `<h3>${t('🔬 STATS LAB — 多次元統計と緑帯到達のための総合最適化', '🔬 STATS LAB — multi-dimensional statistics & combined optimum for the GREEN zone')}</h3>`;
+    html += `<div style="font-size:11px;color:#bfe8ff;margin-bottom:14px;font-family:'Share Tech Mono',monospace;letter-spacing:1px">${t(
+      '■ 角度ヒスト (緑帯=±5°強調) ■ 位相空間 2D ヒスト (∠×d∠/dt) ■ 3D 等角ビン棒グラフ ■ パラメータ↔成果 相関行列 ■ RBF カーネルでグリッド探索 → 推奨上位5件',
+      '■ Angle hist (green=±5°) ■ Phase-plane 2D hist (∠×d∠/dt) ■ 3D iso-bin bars ■ Param↔outcome correlation matrix ■ RBF kernel grid search → top-5 recommendations'
+    )}</div>`;
+
+    // ── (A) 1D angle distribution overlaid (with green band shaded) ──
+    html += `<div style="margin:14px 0 6px;font-family:Orbitron;color:var(--cyan);letter-spacing:2px;font-size:12px">${t('① 角度分布ヒストグラム — 緑帯滞在の見える化', '① ANGLE HISTOGRAM — green-band stay visualization')}</div>`;
+    html += render1DAngleHist(items, t);
+
+    // ── (B) 2D phase histogram (angle × dangle) per session ──
+    html += `<div style="margin:18px 0 6px;font-family:Orbitron;color:var(--cyan);letter-spacing:2px;font-size:12px">${t('② 位相空間 2D ヒストグラム — ∠ × d∠/dt', '② 2D PHASE HISTOGRAM — ∠ × d∠/dt')}</div>`;
+    html += `<div style="font-size:10px;color:#7fb8a8;margin-bottom:6px">${t('色 = 滞在時間。原点 (0,0) 周辺に集中するほど制御が安定。', 'Color = dwell time. Tighter cluster at origin (0,0) = better-stabilized controller.')}</div>`;
+    items.forEach(({ s, c }) => {
+      html += `<div style="margin:6px 0">
+        <div style="color:${c};font-family:'Share Tech Mono',monospace;font-size:11px;margin-bottom:4px">▸ ${escapeHtml(s.name)}</div>
+        ${render2DPhaseHist(s)}
+      </div>`;
+    });
+
+    // ── (C) 3D-style isometric bar histogram for the most-stable session ──
+    html += `<div style="margin:18px 0 6px;font-family:Orbitron;color:var(--cyan);letter-spacing:2px;font-size:12px">${t('③ 3D 等角ヒストグラム — ∠ × d∠/dt の縦軸=頻度', '③ 3D ISOMETRIC HISTOGRAM — ∠ × d∠/dt with frequency as height')}</div>`;
+    items.forEach(({ s, c }) => {
+      html += `<div style="margin:8px 0">
+        <div style="color:${c};font-family:'Share Tech Mono',monospace;font-size:11px;margin-bottom:4px">▸ ${escapeHtml(s.name)}</div>
+        ${render3DIsoHist(s, c)}
+      </div>`;
+    });
+
+    // ── (D) param × outcome Pearson correlation matrix ──
+    if (items.length >= 3) {
+      html += `<div style="margin:20px 0 6px;font-family:Orbitron;color:var(--cyan);letter-spacing:2px;font-size:12px">${t('④ パラメータ × 成果 相関行列 (Pearson r)', '④ PARAM × OUTCOME CORRELATION (Pearson r)')}</div>`;
+      html += `<div style="font-size:10px;color:#7fb8a8;margin-bottom:6px">${t(
+        '緑帯滞在 (green%) と正に強い相関のあるパラメータほど「上げると緑に近づく」可能性大。負相関なら逆。',
+        'A param with strong positive correlation to green% likely raises green stay when increased. Negative = opposite.'
+      )}</div>`;
+      html += renderCorrMatrix(items, t);
+    } else {
+      html += `<div class="sec warn" style="margin-top:18px">${t(
+        '相関行列・グリッド探索には最低 3 セッション必要です (現在 ' + items.length + ')。',
+        'Correlation matrix & grid search need ≥3 sessions (currently ' + items.length + ').'
+      )}</div>`;
+      return html;
+    }
+
+    // ── (E) RBF kernel grid search for combined optimum ──
+    html += `<div style="margin:20px 0 6px;font-family:Orbitron;color:var(--green);letter-spacing:2px;font-size:13px">${t('⑤ RBF グリッド探索 — 緑帯最大化の総合推奨', '⑤ RBF GRID SEARCH — combined optimum for green stay')}</div>`;
+    html += `<div style="font-size:10px;color:#7fb8a8;margin-bottom:6px">${t(
+      '可変パラメータ全空間に細かいグリッドを張り、観測点の Gauss カーネル加重平均で各候補の緑%を予測。上位5件を提示。',
+      'Builds a fine grid over all varying params and scores each candidate by Gaussian-kernel weighted average of observed green%. Top-5 listed.'
+    )}</div>`;
+    html += renderRBFGridSearch(items, t);
+
+    return html;
+  },
 };
+
+// ════════════════════════════════════════════════════════════════
+//   STATS LAB renderers
+// ════════════════════════════════════════════════════════════════
+
+// (A) angle histogram with green band shaded
+function render1DAngleHist(items, t) {
+  const W = 600, H = 200, ML = 50, MR = 18, MT = 14, MB = 34;
+  const RANGE = 50;            // ±50°
+  const BINS = 50;             // 2° per bin
+  const hists = items.map(({ s, c }) => {
+    const samples = s.samples || [];
+    const h = new Array(BINS).fill(0);
+    for (const p of samples) {
+      const a = Math.max(-RANGE, Math.min(RANGE, p.angle));
+      const b = Math.min(BINS - 1, Math.floor((a + RANGE) / (2 * RANGE) * BINS));
+      h[b]++;
+    }
+    const tot = h.reduce((x, y) => x + y, 0) || 1;
+    return { c, name: s.name, h: h.map(x => x / tot * 100) };
+  });
+  const yMax = Math.max(2, ...hists.flatMap(o => o.h)) * 1.05;
+  const px = i => ML + i / (BINS - 1) * (W - ML - MR);
+  const py = y => H - MB - y / yMax * (H - MT - MB);
+  const ang = i => -RANGE + i * (2 * RANGE / BINS);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:rgba(0,0,0,.4);border:1px solid #1a3a5a;display:block">`;
+  // green band ±5° shaded
+  const gx0 = ML + (-5 + RANGE) / (2 * RANGE) * (W - ML - MR);
+  const gx1 = ML + (5 + RANGE) / (2 * RANGE) * (W - ML - MR);
+  svg += `<rect x="${gx0}" y="${MT}" width="${gx1 - gx0}" height="${H - MT - MB}" fill="rgba(0,255,136,.12)" stroke="rgba(0,255,136,.5)" stroke-dasharray="3,3"/>`;
+  svg += `<text x="${(gx0+gx1)/2}" y="${MT+11}" fill="#00ff88" font-size="10" text-anchor="middle" font-family="Orbitron" letter-spacing="2">GREEN ±5°</text>`;
+  // axes ticks
+  for (let a = -50; a <= 50; a += 10) {
+    const x = ML + (a + RANGE) / (2 * RANGE) * (W - ML - MR);
+    svg += `<line x1="${x}" x2="${x}" y1="${py(0)}" y2="${py(0)+4}" stroke="#3a6a8a"/>`;
+    svg += `<text x="${x}" y="${py(0)+15}" fill="#7fb8a8" font-size="9" text-anchor="middle" font-family="Share Tech Mono">${a >= 0 ? '+' : ''}${a}°</text>`;
+  }
+  for (let i = 0; i <= 4; i++) {
+    const v = yMax * i / 4;
+    const y = py(v);
+    svg += `<line x1="${ML}" x2="${W-MR}" y1="${y}" y2="${y}" stroke="#13334a" stroke-dasharray="3,3"/>`;
+    svg += `<text x="${ML-4}" y="${y+3}" fill="#7fb8a8" font-size="9" text-anchor="end" font-family="Share Tech Mono">${v.toFixed(1)}%</text>`;
+  }
+  // each session stepped polyline
+  hists.forEach(o => {
+    let path = '';
+    for (let i = 0; i < BINS; i++) {
+      const x0 = px(i) - (W - ML - MR) / BINS / 2;
+      const x1 = px(i) + (W - ML - MR) / BINS / 2;
+      const y = py(o.h[i]);
+      path += (i === 0 ? `M${x0},${py(0)} L${x0},${y} L${x1},${y}` : ` L${x1},${y}`);
+    }
+    path += ` L${px(BINS-1) + (W - ML - MR) / BINS / 2},${py(0)}`;
+    svg += `<path d="${path}" fill="${o.c}" fill-opacity=".18" stroke="${o.c}" stroke-width="1.4"/>`;
+  });
+  // axis labels
+  svg += `<text x="${(ML+W-MR)/2}" y="${H-4}" fill="#bfe8ff" font-size="11" text-anchor="middle" font-family="Orbitron" letter-spacing="2">ANGLE (°)</text>`;
+  svg += `<text x="14" y="${MT+10}" fill="#bfe8ff" font-size="10" font-family="Orbitron" letter-spacing="1">% TIME</text>`;
+  svg += '</svg>';
+  return svg;
+}
+
+// (B) 2D phase histogram per session: ∠ × d∠/dt
+function render2DPhaseHist(s) {
+  const W = 600, H = 280, ML = 56, MR = 60, MT = 14, MB = 38;
+  const NX = 40, NY = 24;
+  const AX = 50, AY = 200;     // ±50° ×  ±200°/s
+  const grid = [];
+  for (let j = 0; j < NY; j++) grid.push(new Array(NX).fill(0));
+  const samples = s.samples || [];
+  for (const p of samples) {
+    const a = p.angle, d = p.dangle || 0;
+    if (Math.abs(a) > AX || Math.abs(d) > AY) continue;
+    const i = Math.min(NX - 1, Math.floor((a + AX) / (2 * AX) * NX));
+    const j = Math.min(NY - 1, Math.floor((d + AY) / (2 * AY) * NY));
+    grid[j][i]++;
+  }
+  let gMax = 0;
+  for (const row of grid) for (const v of row) if (v > gMax) gMax = v;
+  if (gMax === 0) gMax = 1;
+  const px = i => ML + (i + 0.5) / NX * (W - ML - MR);
+  const py = j => H - MB - (j + 0.5) / NY * (H - MT - MB);
+  const cellW = (W - ML - MR) / NX, cellH = (H - MT - MB) / NY;
+  const colorOf = v => {
+    if (v === 0) return 'rgba(0,0,0,0)';
+    const u = Math.log1p(v) / Math.log1p(gMax);
+    const hue = 240 - 200 * u;
+    return `hsl(${hue},80%,${22 + 35 * u}%)`;
+  };
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:rgba(0,0,0,.5);border:1px solid #1a3a5a;display:block">`;
+  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    if (grid[j][i] === 0) continue;
+    svg += `<rect x="${(px(i)-cellW/2).toFixed(1)}" y="${(py(j)-cellH/2).toFixed(1)}" width="${(cellW+0.5).toFixed(1)}" height="${(cellH+0.5).toFixed(1)}" fill="${colorOf(grid[j][i])}"/>`;
+  }
+  // green band overlay (|angle|≤5)
+  const gx0 = ML + (-5 + AX) / (2 * AX) * (W - ML - MR);
+  const gx1 = ML + (5 + AX) / (2 * AX) * (W - ML - MR);
+  svg += `<rect x="${gx0}" y="${MT}" width="${gx1-gx0}" height="${H-MT-MB}" fill="none" stroke="#00ff88" stroke-dasharray="4,3" opacity=".7"/>`;
+  // origin lines
+  svg += `<line x1="${px(NX/2 - 0.5)}" x2="${px(NX/2 - 0.5)}" y1="${MT}" y2="${H-MB}" stroke="#3a6a8a" stroke-dasharray="2,3"/>`;
+  svg += `<line x1="${ML}" x2="${W-MR}" y1="${py(NY/2 - 0.5)}" y2="${py(NY/2 - 0.5)}" stroke="#3a6a8a" stroke-dasharray="2,3"/>`;
+  // axis ticks
+  for (let a = -50; a <= 50; a += 25) {
+    const x = ML + (a + AX) / (2 * AX) * (W - ML - MR);
+    svg += `<text x="${x}" y="${H-MB+14}" fill="#7fb8a8" font-size="9" text-anchor="middle" font-family="Share Tech Mono">${a >= 0 ? '+' : ''}${a}°</text>`;
+  }
+  for (let d = -200; d <= 200; d += 100) {
+    const y = H - MB - (d + AY) / (2 * AY) * (H - MT - MB);
+    svg += `<text x="${ML-4}" y="${y+3}" fill="#7fb8a8" font-size="9" text-anchor="end" font-family="Share Tech Mono">${d >= 0 ? '+' : ''}${d}</text>`;
+  }
+  svg += `<text x="${(ML+W-MR)/2}" y="${H-4}" fill="#bfe8ff" font-size="11" text-anchor="middle" font-family="Orbitron" letter-spacing="2">ANGLE (°)</text>`;
+  svg += `<text x="14" y="${(MT+H-MB)/2}" fill="#bfe8ff" font-size="11" text-anchor="middle" font-family="Orbitron" letter-spacing="2" transform="rotate(-90 14 ${(MT+H-MB)/2})">d∠/dt (°/s)</text>`;
+  // colorbar
+  const cbX = W - MR + 14, cbW = 10;
+  for (let k = 0; k < 30; k++) {
+    const u = 1 - k / 29;
+    const v = u * gMax;
+    svg += `<rect x="${cbX}" y="${MT + (H-MT-MB)*k/30}" width="${cbW}" height="${(H-MT-MB)/30+0.5}" fill="${colorOf(Math.max(1,v))}"/>`;
+  }
+  svg += `<text x="${cbX-2}" y="${MT+8}" fill="#7fb8a8" font-size="9" text-anchor="end">${gMax}</text>`;
+  svg += `<text x="${cbX-2}" y="${H-MB}" fill="#7fb8a8" font-size="9" text-anchor="end">0</text>`;
+  svg += '</svg>';
+  return svg;
+}
+
+// (C) 3D isometric bar histogram for ∠ × d∠/dt
+function render3DIsoHist(s, color) {
+  const W = 600, H = 340;
+  const NX = 18, NY = 12;
+  const AX = 40, AY = 160;
+  const grid = [];
+  for (let j = 0; j < NY; j++) grid.push(new Array(NX).fill(0));
+  const samples = s.samples || [];
+  for (const p of samples) {
+    const a = p.angle, d = p.dangle || 0;
+    if (Math.abs(a) > AX || Math.abs(d) > AY) continue;
+    const i = Math.min(NX - 1, Math.floor((a + AX) / (2 * AX) * NX));
+    const j = Math.min(NY - 1, Math.floor((d + AY) / (2 * AY) * NY));
+    grid[j][i]++;
+  }
+  let gMax = 0;
+  for (const row of grid) for (const v of row) if (v > gMax) gMax = v;
+  if (gMax === 0) gMax = 1;
+  // isometric projection: cellSize on plane, height up
+  const cellW = 22, cellH = 14;       // x/y projection units
+  const heightUnit = 90 / Math.log1p(gMax);
+  const ox = 80, oy = H - 40;          // origin (front-bottom-left of plane)
+  // axis transforms (x = angle bin, y = dangle bin; z = freq)
+  const proj = (i, j, z) => {
+    const px = ox + i * cellW - j * cellW * 0.5;
+    const py = oy - i * cellH * 0.5 - j * cellH - z;
+    return [px, py];
+  };
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:rgba(0,0,0,.5);border:1px solid #1a3a5a;display:block">`;
+  // base grid (floor) — only outline
+  let floor = '';
+  for (let i = 0; i <= NX; i++) {
+    const [x0, y0] = proj(i, 0, 0); const [x1, y1] = proj(i, NY, 0);
+    floor += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="#1f4060" stroke-width="0.5"/>`;
+  }
+  for (let j = 0; j <= NY; j++) {
+    const [x0, y0] = proj(0, j, 0); const [x1, y1] = proj(NX, j, 0);
+    floor += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="#1f4060" stroke-width="0.5"/>`;
+  }
+  svg += floor;
+  // green-band stripes (|angle|≤5°)
+  const i0 = Math.max(0, Math.floor((-5 + AX) / (2 * AX) * NX));
+  const i1 = Math.min(NX, Math.ceil((5 + AX) / (2 * AX) * NX));
+  for (let j = 0; j < NY; j++) {
+    const pts = [proj(i0, j, 0), proj(i1, j, 0), proj(i1, j+1, 0), proj(i0, j+1, 0)];
+    const polyline = pts.map(p => p.join(',')).join(' ');
+    svg += `<polygon points="${polyline}" fill="rgba(0,255,136,.12)" stroke="none"/>`;
+  }
+  // bars: paint back-to-front (sort by i + j descending so closer bars overlap farther)
+  const bars = [];
+  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    if (grid[j][i] > 0) bars.push({ i, j, z: Math.log1p(grid[j][i]) * heightUnit, v: grid[j][i] });
+  }
+  bars.sort((a, b) => (a.i + a.j) - (b.i + b.j));
+  bars.forEach(({ i, j, z, v }) => {
+    // 4 corners on floor + 4 on top
+    const a = proj(i, j, 0),     b = proj(i+1, j, 0),     c = proj(i+1, j+1, 0),     d = proj(i, j+1, 0);
+    const A = proj(i, j, z),     B = proj(i+1, j, z),     C = proj(i+1, j+1, z),     D = proj(i, j+1, z);
+    const u = v / gMax;
+    const inGreen = i >= i0 && i < i1;
+    const baseHue = inGreen ? 140 : 200 - 60 * u;
+    const top = `hsl(${baseHue},80%,${45 + 25*u}%)`;
+    const right = `hsl(${baseHue},75%,${30 + 22*u}%)`;
+    const front = `hsl(${baseHue},75%,${22 + 18*u}%)`;
+    // right face (b → c → C → B)
+    svg += `<polygon points="${b.join(',')} ${c.join(',')} ${C.join(',')} ${B.join(',')}" fill="${right}" stroke="#000" stroke-width="0.3"/>`;
+    // front face (a → b → B → A)
+    svg += `<polygon points="${a.join(',')} ${b.join(',')} ${B.join(',')} ${A.join(',')}" fill="${front}" stroke="#000" stroke-width="0.3"/>`;
+    // top
+    svg += `<polygon points="${A.join(',')} ${B.join(',')} ${C.join(',')} ${D.join(',')}" fill="${top}" stroke="#000" stroke-width="0.3"/>`;
+  });
+  // axis labels
+  const [axEnd] = [proj(NX, 0, 0)];
+  svg += `<text x="${axEnd[0]+6}" y="${axEnd[1]+10}" fill="#bfe8ff" font-size="10" font-family="Orbitron">∠ (±${AX}°)</text>`;
+  const ayEnd = proj(0, NY, 0);
+  svg += `<text x="${ayEnd[0]-50}" y="${ayEnd[1]+4}" fill="#bfe8ff" font-size="10" font-family="Orbitron">d∠/dt (±${AY})</text>`;
+  svg += `<text x="${ox-66}" y="${oy-95}" fill="#bfe8ff" font-size="10" font-family="Orbitron">FREQ (log)</text>`;
+  svg += '</svg>';
+  return svg;
+}
+
+// (D) parameter × outcome correlation matrix
+function renderCorrMatrix(items, t) {
+  const enriched = items.map(({ s }) => {
+    const samples = s.samples || [];
+    const inGreen = samples.length ? samples.filter(p => Math.abs(p.angle) <= 5).length / samples.length * 100 : 0;
+    const dur = (s.duration || 0) / 1000;
+    const stats = s.stats || {};
+    const peakPower = samples.length ? Math.max(...samples.map(p => Math.abs(p.power || 0))) : 0;
+    const meanA = samples.length ? samples.reduce((a, b) => a + b.angle, 0) / samples.length : 0;
+    const rms = samples.length ? Math.sqrt(samples.reduce((a, b) => a + (b.angle - meanA) ** 2, 0) / samples.length) : 0;
+    return {
+      params: s.params || {},
+      outcomes: {
+        green_pct: inGreen,
+        duration_s: dur,
+        rms_angle: rms,
+        max_abs_angle: stats.max_abs_angle || 0,
+        peak_power: peakPower,
+        osc_hz: stats.osc_hz || 0,
+      },
+    };
+  });
+  // detect varying params
+  const varying = PARAM_KEYS.filter(k => {
+    const vs = enriched.map(e => e.params[k]).filter(v => v != null);
+    return vs.length === enriched.length && new Set(vs.map(v => +v)).size >= 2;
+  });
+  const outcomeKeys = ['green_pct','duration_s','rms_angle','max_abs_angle','peak_power','osc_hz'];
+  const outcomeLabels = { green_pct: 'GREEN%', duration_s: 'DUR(s)', rms_angle: 'RMS∠', max_abs_angle: 'MAX|∠|', peak_power: 'PEAK|P|', osc_hz: 'OSC Hz' };
+  if (!varying.length) {
+    return `<div class="sec warn">${t('変動するパラメータが無いため相関を計算できません。', 'No varying parameters; correlation cannot be computed.')}</div>`;
+  }
+  const pearson = (xs, ys) => {
+    const n = xs.length;
+    const mx = xs.reduce((a,b)=>a+b,0)/n, my = ys.reduce((a,b)=>a+b,0)/n;
+    let sxy=0, sxx=0, syy=0;
+    for (let i = 0; i < n; i++) { const dx = xs[i]-mx, dy = ys[i]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; }
+    return (sxx > 0 && syy > 0) ? sxy / Math.sqrt(sxx*syy) : 0;
+  };
+  // build matrix r[param][outcome]
+  const M = {};
+  for (const k of varying) {
+    M[k] = {};
+    const xs = enriched.map(e => +e.params[k]);
+    for (const o of outcomeKeys) {
+      const ys = enriched.map(e => e.outcomes[o]);
+      M[k][o] = pearson(xs, ys);
+    }
+  }
+  // render as HTML table heatmap
+  const cellColor = r => {
+    const u = Math.max(-1, Math.min(1, r));
+    const hue = u >= 0 ? 140 : 0;          // green vs red
+    const sat = 70 + 20 * Math.abs(u);
+    const lt = 18 + 30 * Math.abs(u);
+    return `hsl(${hue},${sat}%,${lt}%)`;
+  };
+  let html = `<div style="overflow-x:auto"><table style="border-collapse:collapse;font-family:'Share Tech Mono',monospace;font-size:11px;color:#cdeaff;margin:6px 0">
+    <thead><tr><th style="padding:6px 10px;border:1px solid #1a3a5a;background:#0a1828">PARAM \\ OUTCOME</th>`;
+  outcomeKeys.forEach(o => { html += `<th style="padding:6px 10px;border:1px solid #1a3a5a;background:#0a1828">${outcomeLabels[o]}</th>`; });
+  html += `</tr></thead><tbody>`;
+  for (const k of varying) {
+    html += `<tr><td style="padding:6px 10px;border:1px solid #1a3a5a;background:#0a1828;color:var(--cyan)"><b>${k}</b></td>`;
+    for (const o of outcomeKeys) {
+      const r = M[k][o];
+      const isStar = o === 'green_pct' && Math.abs(r) >= 0.6;
+      html += `<td style="padding:6px 10px;border:1px solid #1a3a5a;background:${cellColor(r)};text-align:center;font-weight:${isStar?700:400}">${r.toFixed(2)}${isStar ? ' ★' : ''}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  // textual takeaway focused on green%
+  const ranked = varying.map(k => ({ k, r: M[k].green_pct })).sort((a,b) => Math.abs(b.r) - Math.abs(a.r));
+  const tip = ranked.slice(0, 3).map(({k, r}) => {
+    const dir = r > 0 ? t('上げる', 'increase') : t('下げる', 'decrease');
+    return `<b>${k}</b> (r=${r.toFixed(2)}) → ${t('緑帯を増やすには', 'to grow green%')} <b>${dir}</b>`;
+  }).join(' / ');
+  html += `<div class="sec ok" style="margin-top:8px">${t('★ 緑帯への影響が大きい上位3つ', '★ Top-3 most-impactful for GREEN%')}: ${tip}</div>`;
+  return html;
+}
+
+// (E) RBF kernel grid search across all varying params; rank top-5 candidates
+function renderRBFGridSearch(items, t) {
+  const enriched = items.map(({ s, c }) => {
+    const samples = s.samples || [];
+    const gp = samples.length ? samples.filter(p => Math.abs(p.angle) <= 5).length / samples.length * 100 : 0;
+    return { params: s.params || {}, gp, name: s.name, color: c };
+  });
+  const varying = PARAM_KEYS.filter(k => {
+    const vs = enriched.map(e => e.params[k]).filter(v => v != null);
+    return vs.length === enriched.length && new Set(vs.map(v => +v)).size >= 2;
+  });
+  if (!varying.length) {
+    return `<div class="sec warn">${t('変動パラメータが無いため探索できません。', 'No varying parameters to search over.')}</div>`;
+  }
+  // build per-param min/max + range and bandwidth
+  const ranges = {};
+  varying.forEach(k => {
+    const vs = enriched.map(e => +e.params[k]);
+    const lo = Math.min(...vs), hi = Math.max(...vs);
+    const span = (hi - lo) || Math.max(1e-3, Math.abs(lo) * 0.1);
+    ranges[k] = { lo: lo - span * 0.25, hi: hi + span * 0.25, span: span + span * 0.5, bw: (hi - lo) / 2.5 || span * 0.4 };
+  });
+  // grid resolution: keep total <= 20000
+  const rawSteps = Math.max(4, Math.floor(Math.pow(20000, 1 / varying.length)));
+  const STEPS = Math.min(20, rawSteps);
+  // generate candidate values per param
+  const candVals = {};
+  varying.forEach(k => {
+    const r = ranges[k];
+    const vs = [];
+    for (let i = 0; i < STEPS; i++) vs.push(+(r.lo + (r.hi - r.lo) * i / (STEPS - 1)).toFixed(4));
+    candVals[k] = vs;
+  });
+  // iterate cartesian product
+  const dims = varying.length;
+  const totalCount = Math.pow(STEPS, dims);
+  const top = []; // keep top 5
+  function consider(cand, score) {
+    if (top.length < 5) { top.push({ cand, score }); top.sort((a,b)=>b.score - a.score); return; }
+    if (score > top[top.length - 1].score) {
+      top[top.length - 1] = { cand, score };
+      top.sort((a,b)=>b.score - a.score);
+    }
+  }
+  // recursive iter (cap total)
+  function rec(depth, cand) {
+    if (depth === dims) {
+      // RBF kernel score
+      let num = 0, den = 0;
+      for (const e of enriched) {
+        let sq = 0;
+        for (const k of varying) {
+          const dx = (cand[k] - e.params[k]) / ranges[k].bw;
+          sq += dx * dx;
+        }
+        const w = Math.exp(-0.5 * sq);
+        num += w * e.gp; den += w;
+      }
+      const score = den > 0 ? num / den : 0;
+      consider({ ...cand }, score);
+      return;
+    }
+    const k = varying[depth];
+    for (const v of candVals[k]) {
+      cand[k] = v;
+      rec(depth + 1, cand);
+    }
+  }
+  if (totalCount > 200000) {
+    return `<div class="sec warn">${t('探索空間が大きすぎます (>200k)。可変パラメータを減らすか、もう少し近い値の範囲で再記録してください。', 'Search space too large (>200k). Reduce varying params or narrow the range.')}</div>`;
+  }
+  rec(0, {});
+  // also include observed points so the table compares cleanly
+  const obsList = enriched.map(e => ({ cand: { ...Object.fromEntries(varying.map(k => [k, +e.params[k]])) }, score: e.gp, observed: true, name: e.name, color: e.color }));
+  // build table: predicted top-5 + observed
+  let html = `<div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#7fb8a8;margin-bottom:6px">${t(
+    `■ 候補数 ${totalCount} 通り (${STEPS}^${dims})　■ バンド幅 = (max-min)/2.5　■ 観測点との Gauss 距離で重み付け平均`,
+    `■ Candidates ${totalCount} (${STEPS}^${dims})　■ Bandwidth = (max-min)/2.5　■ Gaussian-weighted mean over observed sessions`
+  )}</div>`;
+  html += `<div style="overflow-x:auto"><table style="border-collapse:collapse;font-family:'Share Tech Mono',monospace;font-size:11px;color:#cdeaff;margin:6px 0">
+    <thead><tr>
+      <th style="padding:6px 8px;border:1px solid #1a3a5a;background:#0a1828">RANK</th>
+      ${varying.map(k => `<th style="padding:6px 8px;border:1px solid #1a3a5a;background:#0a1828">${k}</th>`).join('')}
+      <th style="padding:6px 8px;border:1px solid #1a3a5a;background:#0a1828">${t('予測 GREEN%', 'predicted GREEN%')}</th>
+      <th style="padding:6px 8px;border:1px solid #1a3a5a;background:#0a1828">${t('種別', 'kind')}</th>
+    </tr></thead><tbody>`;
+  top.forEach((item, idx) => {
+    const pct = item.score;
+    const cls = pct >= GREEN_GOAL_PCT ? 'ok' : (pct >= 50 ? 'warn' : '');
+    const bg = pct >= GREEN_GOAL_PCT ? 'rgba(0,255,136,.10)' : (pct >= 50 ? 'rgba(255,176,0,.08)' : 'transparent');
+    html += `<tr style="background:${bg}"><td style="padding:6px 8px;border:1px solid #1a3a5a;text-align:center;color:var(--green);font-weight:700">★ ${idx+1}</td>`;
+    varying.forEach(k => { html += `<td style="padding:6px 8px;border:1px solid #1a3a5a;text-align:right">${item.cand[k]}</td>`; });
+    html += `<td style="padding:6px 8px;border:1px solid #1a3a5a;text-align:right;color:${pct>=GREEN_GOAL_PCT?'var(--green)':pct>=50?'var(--amber)':'#bfe8ff'};font-weight:700">${pct.toFixed(1)}%</td>`;
+    html += `<td style="padding:6px 8px;border:1px solid #1a3a5a;color:#9fcfb5">${t('予測', 'predicted')}</td></tr>`;
+  });
+  // observed rows for comparison
+  obsList.sort((a,b)=>b.score - a.score).forEach(o => {
+    html += `<tr><td style="padding:6px 8px;border:1px solid #1a3a5a;text-align:center;color:${o.color}">●</td>`;
+    varying.forEach(k => { html += `<td style="padding:6px 8px;border:1px solid #1a3a5a;text-align:right">${o.cand[k]}</td>`; });
+    html += `<td style="padding:6px 8px;border:1px solid #1a3a5a;text-align:right;color:#9fcfb5">${o.score.toFixed(1)}%</td>`;
+    html += `<td style="padding:6px 8px;border:1px solid #1a3a5a;color:${o.color}">${t('観測', 'observed')}: ${escapeHtml(o.name)}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  // top recommendation as curl
+  const best = top[0];
+  if (best) {
+    const cmd = varying.map(k => `${k}=${best.cand[k]}`).join(' ');
+    html += `<div class="green-banner" style="margin-top:14px">
+      <div class="gh"><span class="icon"></span>${t('結論: 緑に最も近づく推奨設定', 'CONCLUSION — recommended params closest to GREEN')}</div>
+      <div class="gtip">${t(
+        `RBF カーネル予測で緑帯滞在が最大となる候補:`,
+        `RBF kernel-predicted maximum green-stay candidate:`
+      )}<br>
+        <code style="color:var(--cyan);background:rgba(0,229,255,.08);padding:4px 8px;display:inline-block;margin-top:6px">curl "/api/c?q=${encodeURIComponent(cmd)}"</code><br>
+        <span style="color:var(--green);font-weight:700">${t('予測 GREEN ≈', 'predicted GREEN ≈')} ${best.score.toFixed(1)}%</span>
+        <div style="margin-top:8px;font-size:11px;color:#9fcfb5">${t(
+          '注: 観測した範囲内の補間です。範囲外は信頼性が下がります。実機で 1 段階ずつ近づけてください。',
+          'Note: kernel interpolation is reliable inside the observed range. Approach in steps on the device.'
+        )}</div>
+      </div>
+    </div>`;
+  }
+  return html;
+}
 
 // ─── linear algebra helper: solve 3x3 via Cramer ───
 function solve3x3(M, v) {
