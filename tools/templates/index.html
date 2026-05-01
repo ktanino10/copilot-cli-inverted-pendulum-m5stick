@@ -44,6 +44,11 @@
     font-family:'Orbitron',sans-serif;font-weight:900;font-size:18px;margin:0;
     color:var(--cyan);letter-spacing:.3em;
     text-shadow:0 0 10px var(--cyan), 0 0 20px var(--cyan-d);
+    display:flex;align-items:center;gap:12px;
+  }
+  header h1 .gh-mark{
+    width:24px;height:24px;
+    filter:brightness(0) invert(1) drop-shadow(0 0 6px var(--cyan));
   }
   header h1 .small{font-size:11px;color:var(--amber);letter-spacing:.2em;margin-left:8px}
   .top-status{display:flex;gap:18px;align-items:center;font-size:11px}
@@ -216,11 +221,40 @@
   .bracket.tr{top:4px;right:4px;border-top:2px solid;border-right:2px solid}
   .bracket.bl{bottom:4px;left:4px;border-bottom:2px solid;border-left:2px solid}
   .bracket.br{bottom:4px;right:4px;border-bottom:2px solid;border-right:2px solid}
+  /* mascot floating */
+  .mascot-corner{
+    position:fixed;right:12px;bottom:12px;width:90px;height:90px;z-index:50;
+    pointer-events:none;
+    filter:drop-shadow(0 0 12px rgba(0,229,255,.5));
+  }
+  .mascot-corner img{width:100%;height:100%;object-fit:contain}
+
+  /* github mark on boot */
+  #boot .gh-boot{width:60px;height:60px;margin-bottom:12px;
+    filter:brightness(0) invert(1) drop-shadow(0 0 12px var(--cyan));animation:spin 8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* copilot sticker in diag panel */
+  .diag h3{display:flex;align-items:center;gap:8px}
+  .diag h3 .copilot-icon{width:28px;height:28px;object-fit:contain;
+    filter:drop-shadow(0 0 6px var(--amber))}
+
+  /* duck on slider panel */
+  .duck-deco{position:absolute;top:-6px;right:-6px;width:50px;height:50px;
+    pointer-events:none;z-index:5;filter:drop-shadow(0 0 8px rgba(255,176,0,.6))}
+  .duck-deco img{width:100%;height:100%;object-fit:contain}
+
+  /* footer credit */
+  .credit{text-align:center;padding:14px 0 30px;font-size:10px;color:#3a5a7a;
+    font-family:'Share Tech Mono',monospace;letter-spacing:.2em;
+    display:flex;align-items:center;justify-content:center;gap:8px}
+  .credit img{width:14px;height:14px;filter:brightness(0) invert(1) opacity(.5)}
 </style>
 </head><body>
 
 <!-- ══════════ BOOT SEQUENCE ══════════ -->
 <div id="boot">
+  <img src="/assets/github-mark.png" class="gh-boot" alt="GitHub">
   <h2>IPS COMMAND</h2>
   <div class="sub">INVERTED PENDULUM SYSTEM v3.1</div>
   <pre id="bootlog">> SYSTEM BOOT...
@@ -228,13 +262,14 @@
 > ESTABLISHING WIFI LINK .......... <span style="color:#00ff88">OK</span>
 > KALMAN FILTER INIT .............. <span style="color:#00ff88">OK</span>
 > SERVO MOTOR L/R ................. <span style="color:#00ff88">OK</span>
+> COPILOT AI STANDBY .............. <span style="color:#00ff88">OK</span>
 > HUD INTERFACE READY .............</pre>
   <div class="bar"></div>
 </div>
 
 <!-- ══════════ TOP STATUS BAR ══════════ -->
 <header>
-  <h1>IPS COMMAND<span class="small">INVERTED PENDULUM CONTROL SYSTEM</span></h1>
+  <h1><img src="/assets/github-mark.png" class="gh-mark" alt="GH">IPS COMMAND<span class="small">INVERTED PENDULUM CONTROL SYSTEM</span></h1>
   <div class="top-status">
     <div class="pip"><div class="led" id="led_link"></div>LINK</div>
     <div class="pip"><div class="led off" id="led_motor"></div>MOTOR</div>
@@ -301,6 +336,7 @@
     <!-- GAINS -->
     <div class="panel">
       <span class="bracket tl"></span><span class="bracket tr"></span><span class="bracket bl"></span><span class="bracket br"></span>
+      <span class="duck-deco"><img src="/assets/duck.gif" alt="Duck"></span>
       <div class="panel-h"><span>▶ CONTROL PARAMETERS / 制御変数</span><span class="tag">[PID-MOD]</span></div>
       <div class="sliders" id="sliders"></div>
     </div>
@@ -319,12 +355,21 @@
       <canvas id="compareChart" width="600" height="240"></canvas>
       <div class="legend" id="legend"></div>
       <div class="diag">
-        <h3>◆ AI DIAGNOSTIC</h3>
+        <h3><img src="/assets/copilot.gif" class="copilot-icon" alt="Copilot"> COPILOT AI DIAGNOSTIC</h3>
         <div id="diagBody">> AWAITING SAMPLE DATA...</div>
       </div>
     </div>
   </div>
 
+</div>
+
+<!-- floating mascot -->
+<div class="mascot-corner"><img src="/assets/mascot.gif" alt="Mona"></div>
+
+<!-- footer credit -->
+<div class="credit">
+  <img src="/assets/github-mark.png" alt="GH">
+  POWERED BY GITHUB COPILOT · IPS-CTRL · INVERTED PENDULUM PROJECT
 </div>
 
 <script>
