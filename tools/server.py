@@ -12,14 +12,47 @@ from pathlib import Path
 import requests
 from flask import Flask, jsonify, request, send_from_directory
 
-# ── config ────────────────────────────────────────────────────────────
-M5_BASE = os.environ.get("M5_URL", "http://192.168.4.1")
-PORT    = int(os.environ.get("PORT", 5000))
+# ── config (local_config.py overrides; env vars override that) ────────
+try:
+    from local_config import (  # type: ignore
+        M5_URL as _CFG_M5_URL,
+        PORT as _CFG_PORT,
+        CORS_ALLOW_ORIGINS as _CFG_CORS,
+    )
+except Exception:
+    _CFG_M5_URL = "http://192.168.4.1"
+    _CFG_PORT = 5000
+    _CFG_CORS = []
+
+M5_BASE = os.environ.get("M5_URL", _CFG_M5_URL)
+PORT    = int(os.environ.get("PORT", _CFG_PORT))
 ROOT    = Path(__file__).parent
 SESSDIR = ROOT / "data" / "sessions"
 SESSDIR.mkdir(parents=True, exist_ok=True)
 
+# CORS_ALLOW_ORIGINS env var (comma-sep) wins; else local_config list.
+_env_cors = os.environ.get("CORS_ALLOW_ORIGINS", "").strip()
+if _env_cors:
+    CORS_ORIGINS = [o.strip() for o in _env_cors.split(",") if o.strip()]
+else:
+    CORS_ORIGINS = list(_CFG_CORS)
+
 app = Flask(__name__, static_folder=str(ROOT / "templates"), static_url_path="")
+
+# ── CORS — required for Pages LIVE mode (cross-origin fetches) ────────
+@app.after_request
+def _add_cors(resp):
+    origin = request.headers.get("Origin", "")
+    if origin and (origin in CORS_ORIGINS or "*" in CORS_ORIGINS):
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Vary"] = "Origin"
+        resp.headers["Access-Control-Allow-Methods"] = "GET,POST,DELETE,OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return resp
+
+@app.route("/api/<path:_p>", methods=["OPTIONS"])
+def _cors_preflight(_p):
+    return ("", 204)
 
 # ── routes ────────────────────────────────────────────────────────────
 @app.route("/")
@@ -111,5 +144,7 @@ def delete_session(sid):
 if __name__ == "__main__":
     print(f"M5 base   : {M5_BASE}")
     print(f"Sessions  : {SESSDIR}")
+    if CORS_ORIGINS:
+        print(f"CORS      : {', '.join(CORS_ORIGINS)}")
     print(f"UI        : http://localhost:{PORT}/")
     app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True)

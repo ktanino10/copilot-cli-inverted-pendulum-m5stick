@@ -17,6 +17,9 @@ __pycache__/
 *.pyc
 .venv/
 
+# Local (private) tooling config — never commit
+tools/local_config.py
+
 # OS
 .DS_Store
 tools/data/sessions/

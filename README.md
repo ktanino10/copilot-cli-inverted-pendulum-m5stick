@@ -151,6 +151,18 @@ float kdst = 0.14;
 | **C** | **スマホテザリング** | iPhone/Android のテザリングSSID/パスワードを `IPS_WIFI_LIST` に登録 → どこへ行ってもスマホONでM5が自動接続 | スマホ + データプラン | 同じテザリング下でPC側も繋げばUIアクセス可 |
 | **D** | **遠隔（オフィスから自宅のM5を操作）** | 自宅PCで `tools/server.py` を起動 → [Tailscale](https://tailscale.com/) などのVPNを自宅PCとオフィスPCで共有 → オフィスから `http://<自宅PCのTailscale IP>:5000/` でアクセス | 自宅PC常時起動 + Tailscale (無料枠OK) | 動画を別カメラで配信すれば本当に遠隔チューニングが可能 |
 | **E** | **GitHub Pages デモ** | ハードウェアを持っていない人にUIを見せたいとき。`https://<owner>.github.io/inverted-pendulum-m5stick/` で**シミュレートされたデバイス**と統計解析画面が動く | 何も不要 | `tools/build_demo.py` で自動生成。`docs/demo/` を Pages 公開設定に |
+| **F** | **🔐 LIVE モード**（Pages＋Tailscale） | E のデモ画面で**右下を3回タップ → パスワード**を入れると、同じUIから D の Tailscale 経由で本物のM5を操作できる「合言葉ゲート」 | D のセットアップ + `tools/local_config.py` に `LIVE_PASSWORD` 設定 | 本人だけが LIVE 切替可。パスワードはコードに入らず SHA-256 ハッシュのみ埋め込まれる。詳細は [docs/wifi_communication.md §1-8 / §2-9](docs/wifi_communication.md) |
+
+#### 🔐 LIVE モードの使い方（自分専用の本番アクセス）
+
+1. `cp tools/local_config.example.py tools/local_config.py` を実行（gitignore 済み）
+2. `LIVE_PASSWORD = "あなたの合言葉"` と `CORS_ALLOW_ORIGINS = ["https://<owner>.github.io"]` を設定
+3. `python3 tools/build_demo.py` で `docs/demo/index.html` にハッシュが埋まる
+4. `git commit -am "..." && git push` （パスワード本体ではなくハッシュだけ公開される）
+5. 自宅PCで `python3 tools/server.py` を常駐 + Tailscale ON
+6. 出先で Pages デモを開き、**画面右下を3連タップ** → パスワード → Tailscale URL（`http://100.x.y.z:5000`）→ LIVE 切替完了
+
+> 🛡️ 二重防御: ハッシュが破られても Backend URL（Tailscale 個人IP）を知らないと M5 に届かない。
 
 #### `wifi_config.h` のマルチSSID設定例
 
