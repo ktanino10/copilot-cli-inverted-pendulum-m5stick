@@ -7,7 +7,7 @@
 //   2. demoShim()      — when window.IPS_DEMO is true, intercept /api/*
 //                        with an in-browser simulated device + bundled
 //                        session JSON.  Disabled in LIVE mode.
-//   3. closeButton()   — small "✕ CLOSE" link top-left that returns
+//   3. closeButton()   — small "✕ CLOSE" link bottom-right that returns
 //                        the visitor to the GitHub repo. Only shown in
 //                        DEMO or LIVE (never on the dev/Flask server).
 //
@@ -74,6 +74,11 @@
   document.addEventListener('DOMContentLoaded', () => {
     let taps = [];
     function corner(e) {
+      // Ignore taps that originated on the ✕ CLOSE button (it lives in the
+      // same bottom-right corner — its onclick also stopPropagation()s,
+      // but this is belt-and-braces in case event ordering differs).
+      const t = e.target;
+      if (t && t.closest && t.closest('#ipsCloseBtn')) return false;
       const x = e.clientX ?? (e.touches && e.touches[0] && e.touches[0].clientX);
       const y = e.clientY ?? (e.touches && e.touches[0] && e.touches[0].clientY);
       if (x == null || y == null) return false;
@@ -212,6 +217,12 @@
   // Visible "✕ CLOSE" only when this is the Pages-served demo OR a
   // user is in LIVE mode.  On a plain dev/Flask server we don't add
   // the button — there's nowhere meaningful to "close" to.
+  //
+  // Placed bottom-right (above the DEMO badge column on the left).
+  // The 3-tap LIVE unlock hot-spot also sits in the bottom-right
+  // corner, so we (a) stopPropagation on the button so its clicks
+  // don't count as taps, and (b) liveGate's corner() ignores events
+  // whose target is inside this element.
   document.addEventListener('DOMContentLoaded', () => {
     const inDemo = !!window.IPS_DEMO;
     const inLive = window.__ipsIsLive && window.__ipsIsLive();
@@ -219,12 +230,13 @@
     const repo = window.IPS_REPO_URL ||
       'https://github.com/ktanino10/copilot-cli-inverted-pendulum-m5stick';
     const a = document.createElement('a');
+    a.id = 'ipsCloseBtn';
     a.href = repo;
     a.title = 'Close demo and return to the GitHub repository';
     a.innerHTML = '✕ CLOSE';
     Object.assign(a.style, {
-      position: 'fixed', top: '8px', left: '8px', zIndex: 9999,
-      background: 'rgba(255,255,255,.04)', border: '1px solid #888',
+      position: 'fixed', bottom: '8px', right: '8px', zIndex: 9999,
+      background: 'rgba(0,0,0,.55)', border: '1px solid #888',
       color: '#bbb', fontFamily: 'Orbitron,sans-serif', fontSize: '10px',
       letterSpacing: '.25em', padding: '5px 12px',
       textDecoration: 'none', cursor: 'pointer',
@@ -232,6 +244,11 @@
     });
     a.onmouseenter = () => { a.style.color = '#fff'; a.style.borderColor = '#fff'; };
     a.onmouseleave = () => { a.style.color = '#bbb'; a.style.borderColor = '#888'; };
+    // Don't let the button's click bubble to the document-level
+    // 3-tap detector in liveGate().
+    const swallow = (ev) => ev.stopPropagation();
+    a.addEventListener('click', swallow);
+    a.addEventListener('touchend', swallow);
     document.body.appendChild(a);
   });
 })();
