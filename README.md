@@ -6,12 +6,38 @@
 ![M5StickC Plus](https://img.shields.io/badge/M5StickC-Plus-orange?style=for-the-badge)
 ![PID Control](https://img.shields.io/badge/PID-Control-blue?style=for-the-badge)
 
+<p align="center">
+  <a href="https://ktanino10.github.io/copilot-cli-inverted-pendulum-m5stick/">
+    <img src="https://img.shields.io/badge/%E2%96%B6%EF%B8%8E%20LAUNCH%20DEMO-Open%20in%20Browser-22c55e?style=for-the-badge&labelColor=0a0a0c&logo=github"
+         alt="Launch the live demo on GitHub Pages"
+         height="48">
+  </a>
+  &nbsp;
+  <a href="https://ktanino10.github.io/copilot-cli-inverted-pendulum-m5stick/">
+    <img src="https://img.shields.io/badge/PAGES-ktanino10.github.io-b866ff?style=for-the-badge&labelColor=0a0a0c"
+         alt="GitHub Pages site URL"
+         height="48">
+  </a>
+</p>
+
+> 🚀 **▶︎ [Launch Demo](https://ktanino10.github.io/copilot-cli-inverted-pendulum-m5stick/)** — ハードがなくてもブラウザだけで触れるシミュレータ＋過去のテスト解析が見られます。詳しくは [§GitHub Pages デモを開く](#-github-pages-デモを開く)。
+
 **[日本語](#日本語) | [English](#english)**
 
 ---
 
 <a id="日本語"></a>
 ## 日本語
+
+### 🚀 GitHub Pages デモを開く
+
+| やりたいこと | リンク | 認証 |
+|---|---|---|
+| **🎮 デモを試す**（推奨スタート地点） | **[▶︎ Launch Demo](https://ktanino10.github.io/copilot-cli-inverted-pendulum-m5stick/)** | 不要 |
+| 🔐 オーナーが本物の M5 を遠隔操作 | 同じURL → 画面右下を3回タップ → パスワード | 本人のみ |
+| 📊 同梱サンプルセッションを見る | デモ起動後、`📑 Sessions` パネル | 不要 |
+
+> デモは「実機がいない」ことを `DEMO MODE` バッジで明示します。実機オーナーは隠しゲート（[詳細](docs/wifi_communication.md#1-8-live-モード自分だけの裏口)）から **LIVE モード**へ切替できます。
 
 ### 概要
 
