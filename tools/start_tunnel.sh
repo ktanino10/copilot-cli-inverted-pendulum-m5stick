@@ -8,7 +8,7 @@
 #
 # Watch the output for a line like:
 #   https://random-words-1234.trycloudflare.com
-# Paste that into the LIVE-mode prompt on the GitHub Pages demo.
+# Use that URL as needed.
 set -e
 PORT="${PORT:-5000}"
 echo "→ Starting Cloudflare Quick Tunnel for http://localhost:${PORT}"

@@ -26,25 +26,20 @@ M5_URL = "http://192.168.4.1"   # default = the firmware's AP-mode IP
 PORT = 5000
 
 # ── CORS for GitHub Pages → home server ──────────────────────────────
-# When you switch the Pages UI into LIVE mode, the browser at
-#   https://<owner>.github.io
-# will cross-origin fetch your home server.  List the origin(s) you want
-# to allow.  Use "*" only for testing (any site can talk to your server).
+# When the Pages UI talks to your home server (cross-origin), the
+# browser needs an explicit allowlist.  Add the origin you serve from.
 CORS_ALLOW_ORIGINS = [
     # "https://ktanino10.github.io",
 ]
 
-# ── LIVE-mode password gate (Pages demo) ─────────────────────────────
-# Set this to a password ONLY YOU know.  build_demo.py will hash it
-# (SHA-256) and bake the hash — not the password itself — into the
-# generated docs/demo/index.html.  Visitors who triple-tap the
-# bottom-right corner are prompted; only matching SHA-256 unlocks
-# LIVE mode.
+# ── (Internal) Owner-only password gate ──────────────────────────────
+# Used by tools/build_demo.py when generating docs/demo/.  Only the
+# SHA-256 hash is baked into the public output — the password itself
+# never leaves this gitignored file.  Operating procedure is intentionally
+# not documented in this template; see your private notes.
 #
-# Leave empty ("") to disable the LIVE gate entirely (demo only).
+# Leave empty ("") to skip baking a hash entirely.
 LIVE_PASSWORD = ""
 
-# Optional default Backend URL pre-filled in the LIVE-mode prompt.
-# Most often this is your home PC's Tailscale address + port:
-#   "http://100.96.12.34:5000"
+# Optional default backend URL stored alongside the hash for owner use.
 LIVE_DEFAULT_URL = ""
