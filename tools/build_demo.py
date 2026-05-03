@@ -224,7 +224,9 @@ SESSIONS = [
 ]
 
 
-def build_sessions() -> None:
+def build_synth_sessions() -> int:
+    """Generate the demo's curated synthetic sessions (fallback when there
+    is no real captured data)."""
     OUT_DATA.mkdir(parents=True, exist_ok=True)
     index = []
     for sid, name, seed, kp, kd, pneg, bias, fall in SESSIONS:
@@ -245,7 +247,82 @@ def build_sessions() -> None:
         })
         print(f"  built {sid}.json  score={d['stats']['score']:>3}  fall={d['stats']['fall_dir']}")
     (OUT_DATA / "index.json").write_text(json.dumps(index, indent=1), encoding="utf-8")
-    print(f"  wrote index.json  ({len(index)} sessions)")
+    print(f"  wrote index.json  ({len(index)} synth sessions)")
+    return len(index)
+
+
+# Where server.py writes real captured runs.
+REAL_SESSIONS_DIR = ROOT / "tools" / "data" / "sessions"
+
+
+def load_real_sessions() -> list[tuple[str, dict]]:
+    """Load real sessions captured by tools/server.py.
+
+    Skips sessions that are missing the modern stats (green_ratio / score) —
+    those were recorded before the analytics pipeline was added and would
+    look broken in the dashboard.
+    """
+    if not REAL_SESSIONS_DIR.exists():
+        return []
+    out: list[tuple[str, dict]] = []
+    for f in sorted(REAL_SESSIONS_DIR.glob("*.json")):
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"  skip {f.name}: parse error {e}")
+            continue
+        stats = d.get("stats") or {}
+        if stats.get("score") is None:
+            continue
+        out.append((f.stem, d))
+    return out
+
+
+def build_real_sessions(sessions: list[tuple[str, dict]]) -> int:
+    """Copy real captured sessions into the demo with friendly numbered names."""
+    OUT_DATA.mkdir(parents=True, exist_ok=True)
+    # Sort chronologically so live-run-01 is the earliest run.
+    sessions = sorted(sessions, key=lambda kv: kv[1].get("ts") or 0)
+    index = []
+    for i, (sid, d) in enumerate(sessions, 1):
+        d = dict(d)  # don't mutate the on-disk source
+        d["id"] = sid
+        d["name"] = f"live-run-{i:02d}"
+        d["source"] = "real"
+        (OUT_DATA / f"{sid}.json").write_text(json.dumps(d, indent=1), encoding="utf-8")
+        stats = d.get("stats") or {}
+        index.append({
+            "id": sid,
+            "name": d["name"],
+            "ts": d.get("ts"),
+            "duration": d.get("duration"),
+            "samples": len(d.get("samples") or []),
+            "max_abs_angle": stats.get("max_abs_angle"),
+            "fall_dir": stats.get("fall_dir"),
+            "green_ratio": stats.get("green_ratio"),
+            "mean_abs_angle": stats.get("mean_abs_angle"),
+            "score": stats.get("score"),
+            "params": d.get("params"),
+        })
+        print(f"  copied {sid}.json  → {d['name']}  score={stats.get('score'):>3}  fall={stats.get('fall_dir')}")
+    (OUT_DATA / "index.json").write_text(json.dumps(index, indent=1), encoding="utf-8")
+    print(f"  wrote index.json  ({len(index)} real sessions)")
+    return len(index)
+
+
+def build_sessions() -> None:
+    """Pick real captures over synth when available."""
+    OUT_DATA.mkdir(parents=True, exist_ok=True)
+    real = load_real_sessions()
+    # Always start from a clean slate so renamed/removed sessions don't linger.
+    for old in OUT_DATA.glob("*.json"):
+        old.unlink()
+    if real:
+        print(f"  data source : REAL ({len(real)} sessions from tools/data/sessions/)")
+        build_real_sessions(real)
+    else:
+        print("  data source : SYNTH (no real sessions with full stats)")
+        build_synth_sessions()
 
 
 def main() -> None:
