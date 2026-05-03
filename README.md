@@ -61,9 +61,11 @@ M5StickC Plus を使った倒立振子（自立バランスロボット）のプ
 copilot-cli-inverted-pendulum-m5stick/
 │
 ├── README.md                          ← 📌 今読んでいるファイル（概要・使い方・リンク集）
+├── LICENSE                            ← 📜 MIT ライセンス
 │
 ├── inverted_pendulum/
-│   └── inverted_pendulum.ino          ← 🎯 メインファームウェア（PID制御 + カルマンフィルタ + WebUI）
+│   ├── inverted_pendulum.ino          ← 🎯 メインファームウェア（PID制御 + カルマンフィルタ + WebUI）
+│   └── wifi_config.h.example          ← 📝 WiFi 設定テンプレート（マルチSSID対応）
 │
 ├── servo_test/
 │   └── servo_test.ino                 ← 🔧 サーボ動作確認用テストスケッチ
@@ -85,7 +87,6 @@ copilot-cli-inverted-pendulum-m5stick/
 │   ├── visualize_root.py              ← 📈 CERN ROOT / matplotlib可視化
 │   ├── upload.sh                      ← ⬆️ arduino-cli でファーム書き込み
 │   ├── run_server.sh                  ← ▶️ server.py 起動ヘルパ
-│   ├── start_tunnel.sh                ← 🛡️ Tailscale トンネル起動ヘルパ
 │   ├── local_config.example.py        ← ⚙️ 個人設定のテンプレート（IP / パスワード等）
 │   ├── requirements.txt               ← 🐍 Python 依存
 │   ├── templates/                     ← 🎨 ダッシュボードのソース (index.html / dash.html / _demo_shim.js)
@@ -102,7 +103,7 @@ copilot-cli-inverted-pendulum-m5stick/
 │       ├── index.html                 ←   ガジェット風ホーム
 │       ├── dash.html                  ←   STATS LAB / TEST ARCHIVE ダッシュボード
 │       ├── _demo_shim.js              ←   /api/* をブラウザ内でモックする層
-│       ├── data/sessions/             ←   実機キャプチャから生成された9件のセッション
+│       ├── data/sessions/             ←   実機キャプチャから生成された 11 件のセッション
 │       └── assets/                    ←   GIF・画像
 │
 └── log/                               ← 📜 詳細な日次実験ログ（README から切り出し）
@@ -193,15 +194,14 @@ float kdst = 0.14;
 倒立振子を**自宅・オフィス・出先**で動かしたいときの実用的な選択肢を、
 おすすめ順にまとめる。すべてファームウェア／UIに既に組み込み済み。
 
-> 📡 通信そのものの仕組みは別資料にまとめた：**[docs/wifi_communication.md](docs/wifi_communication.md)** — 初心者向けと技術者向けの2部構成（WiFi/HTTP/AP/Tailscale/fetchシム などをこのプロジェクトの実装に紐づけて解説）。
+> 📡 通信そのものの仕組みは別資料にまとめた：**[docs/wifi_communication.md](docs/wifi_communication.md)** — 初心者向けと技術者向けの2部構成（WiFi/HTTP/AP/fetchシム などをこのプロジェクトの実装に紐づけて解説）。
 
 | # | シナリオ | 使い方 | 必要なもの | 備考 |
 |---|---|---|---|---|
 | **A** | **マルチSSID**（推奨） | `wifi_config.h` に複数のSSIDを並べておくだけで、起動時にスキャンして電波が入っているものへ自動接続 | `wifi_config.h` 編集のみ | 一度書き込めば、家・オフィス・スマホテザリングを自動切替。設定例は `wifi_config.h.example` 参照 |
 | **B** | **ソフトAPフォールバック** | どの既知SSIDも見えないとき、M5自身が `IPS-CTRL`（pass: `ips12345`） というWiFiアクセスポイントを立ち上げる。ノートPC/スマホでそのSSIDに繋ぎ、`http://192.168.4.1/` を開くだけ | M5本体だけ／ルータ不要 | カフェ・電車・社外プレゼンなど、信用できないWiFi環境でも完全独立で動く |
-| **C** | **スマホテザリング** | iPhone/Android のテザリングSSID/パスワードを `IPS_WIFI_LIST` に登録 → どこへ行ってもスマホONでM5が自動接続 | スマホ + データプラン | 同じテザリング下でPC側も繋げばUIアクセス可 |
-| **D** | **遠隔（オフィスから自宅のM5を操作）** | 自宅PCで `tools/server.py` を起動 → [Tailscale](https://tailscale.com/) などのVPNを自宅PCとオフィスPCで共有 → オフィスから `http://<自宅PCのTailscale IP>:5000/` でアクセス | 自宅PC常時起動 + Tailscale (無料枠OK) | 動画を別カメラで配信すれば本当に遠隔チューニングが可能 |
-| **E** | **GitHub Pages デモ** | ハードウェアを持っていない人にUIを見せたいとき。`https://<owner>.github.io/inverted-pendulum-m5stick/` で**シミュレートされたデバイス**と統計解析画面が動く | 何も不要 | `tools/build_demo.py` で自動生成。`docs/demo/` を Pages 公開設定に |
+| **C** | **スマホテザリング**（実運用例） | iPhone/Android のテザリングSSID/パスワードを `IPS_WIFI_LIST` に登録 → どこへ行ってもスマホONでM5が自動接続。PC側も同じテザリングに繋ぎ、ダッシュボード上中央の「M5: ◯◯」ウィジェットに LCD 表示の IP を入れて APPLY | スマホ + データプラン | 著者は Pixel テザリングで品川オフィスから動作確認済み（[2026-05-03 のログ](log/progress-log.md#japanese)参照） |
+| **D** | **GitHub Pages デモ** | ハードウェアを持っていない人にUIを見せたいとき。`https://<owner>.github.io/inverted-pendulum-m5stick/` で**シミュレートされたデバイス**と統計解析画面が動く | 何も不要 | `tools/build_demo.py` で自動生成。`docs/demo/` を Pages 公開設定に |
 
 #### `wifi_config.h` のマルチSSID設定例
 
@@ -593,7 +593,7 @@ getPitch() = (acc[2] - 1.0) * 57.3
 
 ### 進捗ログ・実験ログ
 
-> 詳細な日次実験ログ（半田付け→ファーム移植→ハードウェアトラブル→IMU軸特定→PIDチューニング→GitHub Pages デモ化、2026-04-13〜2026-05-02）は **[`log/progress-log.md`](log/progress-log.md#japanese)** に切り出しました。
+> 詳細な日次実験ログ（半田付け→ファーム移植→ハードウェアトラブル→IMU軸特定→PIDチューニング→GitHub Pages デモ化→Pixel テザリング持ち運び対応、2026-04-13〜2026-05-03）は **[`log/progress-log.md`](log/progress-log.md#japanese)** に切り出しました。
 
 主なマイルストーン:
 
@@ -605,6 +605,7 @@ getPitch() = (acc[2] - 1.0) * 57.3
 | 2026-04-25 | n_shinichi 氏コード完全準拠リライト・atan2 境界問題解消 |
 | 2026-05-01 | 「後ろへ逃げる」問題のログ化、転倒分類表の確立 |
 | 2026-05-02 | チューニングUIの解析強化、マルチSSID + APフォールバック、Pages デモ公開 |
+| 2026-05-03 | Pixel テザリング持ち運び対応・M5 IP 切替ウィジェット・ネットワークの学び |
 
 → 詳細は **[`log/progress-log.md`](log/progress-log.md#japanese)** へ
 
@@ -640,9 +641,11 @@ An overview of the entire repository — **what's where** and **where to start r
 copilot-cli-inverted-pendulum-m5stick/
 │
 ├── README.md                          ← 📌 You are here (overview, usage, links)
+├── LICENSE                            ← 📜 MIT license
 │
 ├── inverted_pendulum/
-│   └── inverted_pendulum.ino          ← 🎯 Main firmware (PID + Kalman filter + WebUI)
+│   ├── inverted_pendulum.ino          ← 🎯 Main firmware (PID + Kalman filter + WebUI)
+│   └── wifi_config.h.example          ← 📝 WiFi config template (multi-SSID supported)
 │
 ├── servo_test/
 │   └── servo_test.ino                 ← 🔧 Servo test sketch
@@ -664,7 +667,6 @@ copilot-cli-inverted-pendulum-m5stick/
 │   ├── visualize_root.py              ← 📈 CERN ROOT / matplotlib visualization
 │   ├── upload.sh                      ← ⬆️ Flash firmware via arduino-cli
 │   ├── run_server.sh                  ← ▶️ Helper to start server.py
-│   ├── start_tunnel.sh                ← 🛡️ Helper to start Tailscale tunnel
 │   ├── local_config.example.py        ← ⚙️ Template for personal config (IP / password)
 │   ├── requirements.txt               ← 🐍 Python dependencies
 │   ├── templates/                     ← 🎨 Dashboard source (index.html / dash.html / _demo_shim.js)
@@ -681,7 +683,7 @@ copilot-cli-inverted-pendulum-m5stick/
 │       ├── index.html                 ←   Gadget-styled landing page
 │       ├── dash.html                  ←   STATS LAB / TEST ARCHIVE dashboard
 │       ├── _demo_shim.js              ←   In-browser /api/* mock layer
-│       ├── data/sessions/             ←   9 sessions generated from real captures
+│       ├── data/sessions/             ←   11 sessions generated from real captures
 │       └── assets/                    ←   GIFs & images
 │
 └── log/                               ← 📜 Detailed daily experiment log (extracted from README)
@@ -760,7 +762,7 @@ The learning materials are placed before the experiment logs so the theory can b
 
 ### Progress Log
 
-> The detailed daily experiment log (soldering → firmware port → hardware troubles → IMU axis identification → PID tuning → GitHub Pages demo, 2026-04-13 to 2026-05-02) has been moved to **[`log/progress-log.md`](log/progress-log.md#english)**.
+> The detailed daily experiment log (soldering → firmware port → hardware troubles → IMU axis identification → PID tuning → GitHub Pages demo → Pixel tethering portability, 2026-04-13 to 2026-05-03) has been moved to **[`log/progress-log.md`](log/progress-log.md#english)**.
 
 Key milestones:
 
@@ -772,6 +774,7 @@ Key milestones:
 | 2026-04-25 | Clean rewrite aligned to n_shinichi's code · atan2 boundary fix |
 | 2026-05-01 | "Drifting backward" issue logged · fall classification table |
 | 2026-05-02 | Tuning UI analytics · multi-SSID + AP fallback · GitHub Pages demo |
+| 2026-05-03 | Pixel tethering portability · M5 target widget · networking learnings |
 
 → See **[`log/progress-log.md`](log/progress-log.md#english)** for full detail
 

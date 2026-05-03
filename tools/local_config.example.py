@@ -18,8 +18,8 @@ Fields you can override:
 # Where the real M5 (or your home PC running server.py) lives, as seen
 # from the machine running tools/server.py.  Examples:
 #   "http://192.168.1.42"        # home LAN  (not committed; private)
+#   "http://10.39.0.42"          # phone-tether DHCP lease
 #   "http://pendulum.local"      # if mDNS is set up
-#   "http://100.96.12.34"        # Tailscale IP of the M5's host PC
 M5_URL = "http://192.168.4.1"   # default = the firmware's AP-mode IP
 
 # Server bind port.  Override only if 5000 conflicts.

@@ -44,10 +44,10 @@
     if (pw == null || pw === '') return;
     const h = await sha256Hex(pw);
     if (h !== hashTarget) { alert('❌ Wrong password.'); return; }
-    const def = localStorage.getItem(LS_URL) || window.IPS_LIVE_DEFAULT_URL || 'http://100.x.x.x:5000';
+    const def = localStorage.getItem(LS_URL) || window.IPS_LIVE_DEFAULT_URL || 'http://192.168.0.42:5000';
     const url = prompt(
-      'Backend URL (your home server, e.g. via Tailscale):\n' +
-      '  http://<tailscale-ip>:5000  /  http://pendulum.local:5000',
+      'Backend URL (your home or phone-tether server.py):\n' +
+      '  http://<your-pc-ip>:5000  /  http://pendulum.local:5000',
       def
     );
     if (!url) return;
