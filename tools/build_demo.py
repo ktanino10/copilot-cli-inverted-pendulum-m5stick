@@ -232,20 +232,25 @@ def build_synth_sessions() -> int:
     for sid, name, seed, kp, kd, pneg, bias, fall in SESSIONS:
         d = synth_session(name, seed, kp, kd, pneg, bias, fall)
         (OUT_DATA / f"{sid}.json").write_text(json.dumps(d, indent=1), encoding="utf-8")
+        stats = d["stats"]
         index.append({
             "id": sid,
             "name": d["name"],
             "ts": d["ts"],
             "duration": d["duration"],
             "samples": len(d["samples"]),
-            "max_abs_angle": d["stats"]["max_abs_angle"],
-            "fall_dir": d["stats"]["fall_dir"],
-            "green_ratio": d["stats"]["green_ratio"],
-            "mean_abs_angle": d["stats"]["mean_abs_angle"],
-            "score": d["stats"]["score"],
+            # Flat fields kept for backward-compat with any consumer that
+            # reads the index without drilling into stats.
+            "max_abs_angle": stats["max_abs_angle"],
+            "fall_dir": stats["fall_dir"],
+            "green_ratio": stats["green_ratio"],
+            "mean_abs_angle": stats["mean_abs_angle"],
+            "score": stats["score"],
+            # Nested copy — dash.html reads s.stats.* when rendering rows.
+            "stats": stats,
             "params": d["params"],
         })
-        print(f"  built {sid}.json  score={d['stats']['score']:>3}  fall={d['stats']['fall_dir']}")
+        print(f"  built {sid}.json  score={stats['score']:>3}  fall={stats['fall_dir']}")
     (OUT_DATA / "index.json").write_text(json.dumps(index, indent=1), encoding="utf-8")
     print(f"  wrote index.json  ({len(index)} synth sessions)")
     return len(index)
@@ -297,11 +302,13 @@ def build_real_sessions(sessions: list[tuple[str, dict]]) -> int:
             "ts": d.get("ts"),
             "duration": d.get("duration"),
             "samples": len(d.get("samples") or []),
+            # Flat (backward-compat) + nested (what dash.html actually reads).
             "max_abs_angle": stats.get("max_abs_angle"),
             "fall_dir": stats.get("fall_dir"),
             "green_ratio": stats.get("green_ratio"),
             "mean_abs_angle": stats.get("mean_abs_angle"),
             "score": stats.get("score"),
+            "stats": stats,
             "params": d.get("params"),
         })
         print(f"  copied {sid}.json  → {d['name']}  score={stats.get('score'):>3}  fall={stats.get('fall_dir')}")
