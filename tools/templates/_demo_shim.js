@@ -310,13 +310,11 @@
   document.addEventListener('DOMContentLoaded', async () => {
     const wrap = document.createElement('div');
     Object.assign(wrap.style, {
-      position: 'fixed', top: '8px', left: '50%', transform: 'translateX(-50%)',
-      zIndex: 9997,
       display: 'flex', alignItems: 'center', gap: '6px',
-      background: 'rgba(0,0,0,.55)', border: '1px solid #555',
-      color: '#9adcff', fontFamily: 'Orbitron,sans-serif', fontSize: '10px',
-      letterSpacing: '.18em', padding: '5px 14px',
-      clipPath: 'polygon(8px 0,calc(100% - 8px) 0,100% 100%,0 100%)',
+      color: '#9adcff', fontFamily: 'Orbitron,sans-serif', fontSize: '11px',
+      letterSpacing: '.15em', padding: '2px 10px',
+      background: 'rgba(0,0,0,.35)', border: '1px solid #355',
+      clipPath: 'polygon(6px 0,calc(100% - 6px) 0,100% 100%,0 100%)',
     });
 
     const label = document.createElement('span');
@@ -475,7 +473,24 @@
     }
     linkBtn.addEventListener('click', toggleLink);
 
-    document.body.appendChild(wrap);
+    // Hang a thin sub-bar directly below the main header, right-aligned so
+    // the widget sits visually under the LINK / MOTOR / PWR pips. This
+    // keeps it well clear of the link-lost Ducky banner that drops in from
+    // the very top of the screen.
+    const subbar = document.createElement('div');
+    Object.assign(subbar.style, {
+      display: 'flex', justifyContent: 'flex-end',
+      padding: '4px 18px 6px',
+      background: 'linear-gradient(90deg,#000a14,#001828,#000a14)',
+      borderBottom: '1px solid #1a3a4a',
+    });
+    subbar.appendChild(wrap);
+    const header = document.querySelector('header');
+    if (header && header.parentElement) {
+      header.parentElement.insertBefore(subbar, header.nextSibling);
+    } else {
+      document.body.appendChild(wrap);
+    }
 
     // Boot: prefer the localStorage value (push it to the server so a
     // fresh server.py picks up where we left off). Otherwise fetch

@@ -14,6 +14,7 @@
 #include <Kalman.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include "mbedtls/base64.h"
 
 // ─── WiFi network table ─────────────────────────────────────────────
 // Defined here so wifi_config.h can reference IpsWifiNet when the
@@ -277,25 +278,55 @@ void processSerial() {
 //  ディスプレイ
 // ============================================================
 // ─── Face-link state (M5 LCD ⟵ PC streamed Mona via /face POST) ───
-// PC pushes ~5 FPS JPEG frames; we cache the latest into g_face_buf and
-// repaint the right-side 80x80 region only when a new frame arrives.
-// If no frame is received for FACE_TIMEOUT_MS, we revert to text-only
-// mode automatically (fail-safe — never get stuck on a stale face).
+// PC pushes ~5 FPS JPEG frames. While LINK is on, the LCD becomes a
+// full-screen Mona display (no text). Disable LINK or stop the
+// streamer (FACE_TIMEOUT_MS of silence) → LCD reverts to the normal
+// status text view automatically. Fail-safe: never get stuck on a
+// stale face if the network dies.
 static const int   LCD_W            = 240;
 static const int   LCD_H            = 135;
-static const int   FACE_W           = 80;
-static const int   FACE_H           = 80;
-static const int   FACE_X           = LCD_W - FACE_W - 4;          // right-aligned, 4px margin
-static const int   FACE_Y           = (LCD_H - FACE_H) / 2;        // vertically centered
-static const int   FACE_TEXT_W      = FACE_X - 2;                  // left strip width for status text
+static const int   FACE_W           = 128;                            // full big Mona (LCD_H limit)
+static const int   FACE_H           = 128;
+static const int   FACE_X           = (LCD_W - FACE_W) / 2;           // horizontally centered
+static const int   FACE_Y           = (LCD_H - FACE_H) / 2;           // vertically centered (≈3px top/bottom)
 static const uint32_t FACE_TIMEOUT_MS = 5000;
-static const size_t   FACE_BUF_MAX    = 8192;
+static const size_t   FACE_BUF_MAX    = 16384;                        // 128² JPEG q70 ≈ 4-7KB; double for safety
 
 static volatile bool g_face_active   = false;
 static volatile bool g_face_changed  = false;
 static uint32_t      g_face_last_rx_ms = 0;
 static uint8_t       g_face_buf[FACE_BUF_MAX];
 static size_t        g_face_len     = 0;
+static volatile uint16_t g_face_bg565 = 0;   // RGB565 bg color (0 = BLACK; updated per /face?bg=)
+
+// ─── Display task — runs on Core 0 to keep the 10ms control loop ────
+// (which lives in Arduino's loop() on Core 1) free of LCD-rendering jitter.
+// drawJpg() takes ~30-50ms on M5StickC Plus2's SPI bus; fillScreen takes
+// ~13ms. Together they can starve the 10ms PID tick of 4-5 cycles, which
+// shows up as control degradation (the user reported this after enabling
+// LINK MONA). By moving all LCD work to a separate FreeRTOS task pinned
+// to Core 0, the control loop on Core 1 is no longer touched by display
+// rendering — only the cheap (<1ms) cmd-parse / WiFi-handle work remains
+// in loop().
+//
+// Synchronization: g_face_buf may be written by handleFace() on Core 1
+// while the display task tries to drawJpg() it on Core 0. We use a mutex:
+//   - handleFace: try-take with 0 timeout. If display is mid-render, the
+//     incoming HTTP frame is dropped (next will arrive in 100ms). This
+//     keeps Core 1 / loop() / control completely non-blocking.
+//   - displayTask: portMAX_DELAY take. Blocks on Core 0 only — safe.
+static SemaphoreHandle_t g_face_buf_mutex = nullptr;
+static TaskHandle_t      g_display_task   = nullptr;
+
+// Convert "RRGGBB" hex to 16-bit 5-6-5. Returns 0 on parse error.
+static uint16_t hexToRgb565(const String& hex) {
+  if (hex.length() != 6) return 0;
+  long v = strtol(hex.c_str(), nullptr, 16);
+  uint8_t r = (v >> 16) & 0xFF;
+  uint8_t g = (v >>  8) & 0xFF;
+  uint8_t b =  v        & 0xFF;
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
 
 void updateDisplay() {
   // Auto-revert face mode if PC streamer stopped pushing frames.
@@ -306,14 +337,27 @@ void updateDisplay() {
   bool mode_changed = (prev_face_active != g_face_active);
   prev_face_active  = g_face_active;
 
+  // ─── Face-only mode: full-screen state-color takeover ───────────
+  // The PC streamer fills the JPEG canvas with the state color (green/
+  // amber/red/black) and tells us which color to paint the surrounding
+  // LCD edges via /face?bg=RRGGBB so the entire 240×135 device looks
+  // like one uniform colored panel with Mona + label centered on top.
   if (g_face_active) {
-    // Clear only the left status strip — face area is owned by the JPEG path.
-    StickCP2.Display.fillRect(0, 0, FACE_TEXT_W, LCD_H, BLACK);
-  } else {
-    // Text-only mode: clear whole LCD (also wipes any leftover face pixels).
-    StickCP2.Display.fillScreen(BLACK);
+    if (g_face_changed || mode_changed) {
+      // Hold the buffer mutex around the SPI render to keep handleFace()
+      // (Core 1) from overwriting g_face_buf mid-drawJpg (Core 0). This
+      // is a Core 0-side wait, so it never blocks the control loop.
+      if (g_face_buf_mutex) xSemaphoreTake(g_face_buf_mutex, portMAX_DELAY);
+      StickCP2.Display.fillScreen(g_face_bg565);
+      StickCP2.Display.drawJpg(g_face_buf, g_face_len, FACE_X, FACE_Y, FACE_W, FACE_H);
+      g_face_changed = false;
+      if (g_face_buf_mutex) xSemaphoreGive(g_face_buf_mutex);
+    }
+    return;
   }
-  (void)mode_changed;  // reserved for future transition effects
+
+  // ─── Text-only mode: original status display ────────────────────
+  StickCP2.Display.fillScreen(BLACK);
 
   StickCP2.Display.setTextSize(2);
   StickCP2.Display.setCursor(0, 0);
@@ -339,20 +383,28 @@ void updateDisplay() {
     StickCP2.Display.setTextColor(CYAN);
     if (wifi_ssid_in_use.length() > 0) {
       // Show SSID (first 12 chars) + IP — vital when moving between locations.
-      // Trim SSID further when face is active so the right-side mascot has clean room.
-      int ssid_max = g_face_active ? 8 : 12;
       StickCP2.Display.printf("%s %s",
-        wifi_ssid_in_use.substring(0, ssid_max).c_str(), wifi_ip.c_str());
+        wifi_ssid_in_use.substring(0, 12).c_str(), wifi_ip.c_str());
     } else {
       StickCP2.Display.printf("%s", wifi_ip.c_str());
     }
   }
+}
 
-  // ─── Face area: redraw only when a brand-new JPEG arrived ───
-  if (g_face_active && g_face_changed) {
-    StickCP2.Display.fillRect(FACE_X, FACE_Y, FACE_W, FACE_H, BLACK);
-    StickCP2.Display.drawJpg(g_face_buf, g_face_len, FACE_X, FACE_Y, FACE_W, FACE_H);
-    g_face_changed = false;
+// ─── displayTaskFn — Core 0 render loop ─────────────────────────────
+// Wakes every 100ms, calls updateDisplay() (which does the heavy SPI
+// rendering). Pinned to Core 0 so it cannot stall the 10ms PID control
+// running on Core 1.
+//
+// Why this matters: before this task existed, updateDisplay was called
+// from loop() on Core 1, which meant every 100ms the control thread was
+// blocked for 30-50ms by drawJpg / fillScreen. That dropped 4-5 PID
+// ticks every second when LINK MONA was on, visibly degrading balance.
+static void displayTaskFn(void* /*arg*/) {
+  TickType_t last = xTaskGetTickCount();
+  for (;;) {
+    updateDisplay();
+    vTaskDelayUntil(&last, pdMS_TO_TICKS(100));
   }
 }
 
@@ -473,18 +525,45 @@ void handleStatus() {
 // PC server.py streams ~5 FPS of the dashboard mascot here. We do NOT
 // decode here (drawJpg in updateDisplay() does that on the next 100ms
 // tick) — keeps this handler short so the control loop stays smooth.
+// ─── /face: receive a base64-encoded JPEG (text body) and stash it ──
+// PC server.py base64-encodes each JPEG so the body is 100% ASCII and
+// survives ESP32 WebServer's String-based body parser (which truncates
+// raw binary at the first NUL byte). We decode here and store the raw
+// JPEG bytes for drawJpg() in updateDisplay() to render on the next tick.
 void handleFace() {
+  if (server.hasArg("bg")) {
+    g_face_bg565 = hexToRgb565(server.arg("bg"));
+  }
   if (server.hasArg("plain")) {
     const String& body = server.arg("plain");
-    size_t len = body.length();
-    if (len > 0 && len <= FACE_BUF_MAX) {
-      memcpy(g_face_buf, body.c_str(), len);
-      g_face_len        = len;
-      g_face_active     = true;
-      g_face_last_rx_ms = millis();
-      g_face_changed    = true;
-      server.send(200, "text/plain", "ok");
-      return;
+    size_t enc_len = body.length();
+    if (enc_len > 0) {
+      // Try-take with 0 timeout: if displayTask (Core 0) is mid-render
+      // (drawJpg ~30-50ms), drop this incoming frame and reply OK so the
+      // sender keeps streaming. The next frame arrives in ~100ms, by
+      // which time the render is finished. This keeps Core 1 / loop() /
+      // PID control completely non-blocking — the whole point of having
+      // moved display to Core 0 in the first place.
+      if (g_face_buf_mutex && xSemaphoreTake(g_face_buf_mutex, 0) == pdTRUE) {
+        size_t out_len = 0;
+        int rc = mbedtls_base64_decode(g_face_buf, FACE_BUF_MAX, &out_len,
+                                       (const unsigned char*)body.c_str(), enc_len);
+        if (rc == 0 && out_len > 0) {
+          g_face_len        = out_len;
+          g_face_active     = true;
+          g_face_last_rx_ms = millis();
+          g_face_changed    = true;
+        }
+        xSemaphoreGive(g_face_buf_mutex);
+        if (rc == 0 && out_len > 0) {
+          server.send(200, "text/plain", "ok");
+          return;
+        }
+      } else {
+        // Display is rendering — frame intentionally dropped.
+        server.send(200, "text/plain", "busy");
+        return;
+      }
     }
   }
   server.send(400, "text/plain", "bad");
@@ -606,6 +685,17 @@ void setup() {
 
   setupWiFi();
 
+  // Create the LCD render task pinned to Core 0. This decouples display
+  // (drawJpg / fillScreen, ~30-50ms each) from the 10ms PID control loop
+  // running in loop() on Core 1. Without this, LINK MONA visibly degrades
+  // balance because every 100ms drawJpg blocks ~5 PID ticks.
+  g_face_buf_mutex = xSemaphoreCreateMutex();
+  xTaskCreatePinnedToCore(
+      displayTaskFn, "display", 6144, nullptr,
+      1 /* low priority — yields to WiFi/system tasks */,
+      &g_display_task,
+      0 /* Core 0 (Arduino loop runs on Core 1) */);
+
   Serial.println("=== Inverted Pendulum v3 (n_shinichi aligned) ===");
   Serial.printf("kp=%.2f ki=%.2f kd=%.2f po=%.0f\n", kp, ki, kd, Pitch_offset);
   Serial.println("Commands: kp= kd= ki= po= po2= bias= zero on off ?");
@@ -636,7 +726,9 @@ void loop() {
 
   // 100ms 表示 + ボタン + データログ
   if (millis() > ms100) {
-    updateDisplay();
+    // NOTE: updateDisplay() is no longer called here — it runs in
+    // displayTaskFn on Core 0 (see setup()). Calling it here would
+    // re-introduce the 30-50ms drawJpg blocking that degrades PID.
     if (motor_sw == 1) {
       Serial.printf("D,%.1f,%d,%d,%d\n", Angle, power, powerL, powerR);
       Serial.printf("X,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%d,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f\n",

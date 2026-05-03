@@ -32,6 +32,40 @@
 
 > 🚀 **▶︎ [Launch Demo](https://ktanino10.github.io/copilot-cli-inverted-pendulum-m5stick/)** — ハードがなくてもブラウザだけで触れるシミュレータ＋過去のテスト解析が見られます。詳しくは [§GitHub Pages デモを開く](#-github-pages-デモを開く)。
 
+---
+
+### 📹 LINK MONA vs 精度比較動画 (2026-05-04) / LINK MONA vs precision A/B videos
+
+PC ダッシュボードのマスコット **Mona** を M5 LCD にライブストリーム配信する [LINK MONA](#-link-mona-m5-lcd--pc-streamed-mona-via-face-post) 機能を作ったところ、**Mona を表示すると倒立精度が落ちる** ことが実機で観測されました。同じ PID 値・同じハードで LINK ON/OFF だけを切り替えた A/B 比較動画と、原因分析を [progress-log.md](log/progress-log.md#2026-05-04-午前-🐛-core-0-化だけでは足りなかった--mona-link-on-で倒れやすい問題の-残り原因-分析) に記録しています。
+
+> 🎵 一部 BGM は深夜テンションで付けたもの / Some BGM was added in late-night-tension mood
+
+<table align="center">
+<tr>
+<td align="center" width="33%">
+  <a href="https://youtube.com/shorts/pW9kolt9mTY"><img src="https://img.youtube.com/vi/pW9kolt9mTY/maxresdefault.jpg" alt="Mona herself on the M5 LCD" width="320"></a><br>
+  <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/pW9kolt9mTY">① Mona 本人 / Mona herself</a></strong><br>M5 LCD 上の LINK MONA</sub>
+</td>
+<td align="center" width="33%">
+  <a href="https://youtube.com/shorts/zf6XWxcPdcU"><img src="https://img.youtube.com/vi/zf6XWxcPdcU/maxresdefault.jpg" alt="Balancing with Mona" width="320"></a><br>
+  <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/zf6XWxcPdcU">② Mona あり / With Mona</a></strong><br>不安定・頻繁に倒れる<br>Visibly unstable</sub>
+</td>
+<td align="center" width="33%">
+  <a href="https://youtube.com/shorts/Icvz28aQBTk"><img src="https://img.youtube.com/vi/Icvz28aQBTk/maxresdefault.jpg" alt="Balancing without Mona" width="320"></a><br>
+  <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/Icvz28aQBTk">③ Mona なし / Without Mona</a></strong><br>安定・長時間立ち続ける<br>Stable</sub>
+</td>
+</tr>
+</table>
+
+主な原因（詳細は progress-log.md）/ Main causes (full analysis in progress-log.md):
+
+- **HTTP/base64 が依然 Core 1 を ~10-20 ms/100 ms 占有** → PID tick が周期的に 2 つ抜ける / HTTP & base64 still occupy ~10-20 ms / 100 ms on Core 1, periodically dropping 2 PID ticks
+- **LCD 全画面着色で消費電流 ~30 → ~70-100 mA** → 200 mAh バッテリでサーボ電圧 sag → トルク低下 / Full-color LCD raises current from ~30 to ~70-100 mA → on a 200 mAh battery, servo rail sags → torque drops
+- **10 Hz WiFi RX 連続で電源レールにリップル** / Continuous 10 Hz WiFi RX puts ripple on the supply rail
+- **推奨運用 / Recommended use**: 「LINK MONA は監視・チューニング用、本気の倒立評価時は OFF」 / "LINK MONA is for monitoring & tuning; turn it OFF for serious balance evaluation"
+
+---
+
 **[日本語](#日本語) | [English](#english)**
 
 ---
@@ -97,6 +131,7 @@ copilot-cli-inverted-pendulum-m5stick/
 ├── docs/                              ← 📚 ドキュメントと公開デモ
 │   ├── pid_guide.md                   ← 🎓 PID制御 初心者ガイド
 │   ├── pid_theory.md                  ← 📐 PID制御 理論編（上級者向け）
+│   ├── parameters.md                  ← 🎛️ 全制御変数リファレンス＋チューニング手順
 │   ├── glossary.md                    ← 📔 制御工学用語集
 │   ├── wifi_communication.md          ← 📶 通信モデル・WiFi設計の解説
 │   └── demo/                          ← 🌍 GitHub Pages 公開デモ（build_demo.py の出力）
@@ -117,6 +152,7 @@ copilot-cli-inverted-pendulum-m5stick/
 | 初めてPID制御に触れる | `docs/pid_guide.md` | このREADMEの「今回の実験を理論で読む」→ `inverted_pendulum.ino` のコメント |
 | 制御工学の基礎がある | `docs/pid_theory.md` | このREADMEの実験ログ → `inverted_pendulum.ino` のソースコード |
 | 通信・WiFi周りを知りたい | `docs/wifi_communication.md` | このREADMEの「🌍 持ち運び・遠隔運用」セクション |
+| 自分の機体をチューニングする | `docs/parameters.md` | ダッシュボードを開きながら 6 ステップ順に値を回す |
 | すぐ動かしたい | `README.md`（使い方セクション） | `servo_test.ino` で動作確認 → `inverted_pendulum.ino` 書き込み → 進捗ログ |
 
 ### きっかけ
@@ -244,6 +280,7 @@ LCDに表示されたIPをそのまま入れればOK。
 |------|------|------|
 | **[docs/pid_guide.md](docs/pid_guide.md)** | ほうきバランスの例えから、P/I/D の役割、倒立振子への応用、実機での調整手順までをやさしく説明 | 初めてPID制御に触れる人 |
 | **[docs/pid_theory.md](docs/pid_theory.md)** | 運動方程式、状態空間表現、カルマンフィルタ、安定性解析、LQRなどを数式で説明 | 制御工学を深く学びたい人 |
+| **[docs/parameters.md](docs/parameters.md)** | ダッシュボード/シリアルから触れる **全制御変数の意味** + 6 ステップ推奨チューニング順序 + 「立ち上がり初期セット」+ よくある罠と対処の早見表 | 実機を持って **これから自分の機体に合わせ込みたい** 人 |
 
 ### 今回の実験を理論で読む
 
@@ -607,6 +644,9 @@ getPitch() = (acc[2] - 1.0) * 57.3
 | 2026-05-02 | チューニングUIの解析強化、マルチSSID + APフォールバック、Pages デモ公開 |
 | 2026-05-03 | Pixel テザリング持ち運び対応・M5 IP 切替ウィジェット・ネットワークの学び |
 | 2026-05-03 | 🔗 LINK MONA — ダッシュボードのマスコットを M5 LCD にネットワーク配信 |
+| 2026-05-03 | LINK MONA 実機デバッグ＋演出フル装備版（base64・全画面塗り・波紋・日英ラベル・10 FPS） |
+| 2026-05-04 | 🛠️ LINK MONA 起因の制御精度劣化を解消 — LCD 描画を Core 0 専用 FreeRTOS タスクに分離（dual-core 並行化） |
+| 2026-05-04 | 🐛 Core 0 化後も残る精度劣化の原因分析 — HTTP/base64 が依然 Core 1 を ~10-20 ms/100 ms 占有、LCD 全画面着色で消費電流増 → サーボトルク低下、対策候補表まとめ |
 
 → 詳細は **[`log/progress-log.md`](log/progress-log.md#japanese)** へ
 
@@ -678,6 +718,7 @@ copilot-cli-inverted-pendulum-m5stick/
 ├── docs/                              ← 📚 Documentation & published demo
 │   ├── pid_guide.md                   ← 🎓 PID Control — Beginner's Guide
 │   ├── pid_theory.md                  ← 📐 PID Control — Theory (Advanced)
+│   ├── parameters.md                  ← 🎛️ Every control variable + tuning workflow
 │   ├── glossary.md                    ← 📔 Control engineering glossary
 │   ├── wifi_communication.md          ← 📶 Communication model & WiFi design
 │   └── demo/                          ← 🌍 GitHub Pages public demo (output of build_demo.py)
@@ -697,6 +738,7 @@ copilot-cli-inverted-pendulum-m5stick/
 |-----------|-----------|-----------|
 | New to PID control | `docs/pid_guide.md` | README experiment notes → comments in `inverted_pendulum.ino` |
 | Control theory background | `docs/pid_theory.md` | README experiment log → `inverted_pendulum.ino` source code |
+| Tuning your own unit | `docs/parameters.md` | Open the dashboard and walk the 6 steps end-to-end |
 | Just want to run it | `README.md` (Usage section) | `servo_test.ino` to verify → flash `inverted_pendulum.ino` → progress log |
 
 ### Motivation
@@ -760,6 +802,7 @@ The learning materials are placed before the experiment logs so the theory can b
 |----------|----------|----------|
 | **[docs/pid_guide.md](docs/pid_guide.md)** | Beginner-friendly explanation of P/I/D terms, broom-balancing analogy, inverted pendulum application, and practical tuning steps | Newcomers to PID control |
 | **[docs/pid_theory.md](docs/pid_theory.md)** | Equations of motion, state-space representation, Kalman filter derivation, stability analysis, LQR, and related control theory | Readers who want the mathematical background |
+| **[docs/parameters.md](docs/parameters.md)** | **Every tunable variable** exposed by the dashboard / serial console + a 6-step recommended tuning workflow + a starter parameter set + a "common pitfalls & fixes" table | Anyone holding the real hardware **about to dial it in for their own unit** |
 
 ### Progress Log
 
@@ -777,6 +820,9 @@ Key milestones:
 | 2026-05-02 | Tuning UI analytics · multi-SSID + AP fallback · GitHub Pages demo |
 | 2026-05-03 | Pixel tethering portability · M5 target widget · networking learnings |
 | 2026-05-03 | 🔗 LINK MONA — stream the dashboard mascot to the M5 LCD over the network |
+| 2026-05-03 | LINK MONA hardware-debugged & polished (base64 transport, full-LCD state color, ripple ring, EN/JP label, 10 FPS) |
+| 2026-05-04 | 🛠️ Fixed LINK MONA-induced control regression — LCD rendering moved to a dedicated FreeRTOS task pinned to Core 0 (true dual-core parallelism) |
+| 2026-05-04 | 🐛 Analyzed residual degradation after Core 0 fix — HTTP / base64 still costs ~10-20 ms / 100 ms on Core 1, full-color LCD raises current → servo torque sag; mitigation table documented |
 
 → See **[`log/progress-log.md`](log/progress-log.md#english)** for full detail
 

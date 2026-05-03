@@ -3,6 +3,7 @@ Inverted Pendulum tuning server.
 Hosts test session UI, proxies to M5StickC, saves sessions to disk.
 Usage: python3 tools/server.py
 """
+import base64
 import io
 import json
 import os
@@ -15,7 +16,7 @@ import requests
 from flask import Flask, jsonify, request, send_from_directory
 
 try:
-    from PIL import Image  # type: ignore
+    from PIL import Image, ImageDraw, ImageFont  # type: ignore
     _PIL_OK = True
 except Exception:
     _PIL_OK = False
@@ -125,14 +126,67 @@ def api_cmd():
 # text-only mode after 5 s of silence (failsafe in case this process
 # dies or the network drops).
 _MASCOT_GIF = ROOT / "templates" / "assets" / "mascot.gif"
-_FACE_SIZE  = 72                           # mascot resized to this; +4px border each side = 80
-_FACE_FPS   = 5
-_FACE_STATE_COLORS = {                     # border color per attitude band
-    "off":  (90, 90, 90),
-    "calm": (60, 220, 120),
-    "warn": (255, 200, 80),
-    "crit": (255, 70, 70),
+_FACE_CANVAS = 128                         # composed image (must match firmware FACE_W)
+_FACE_LABEL_H = 32                         # bottom strip — two lines (EN over JP)
+_FACE_SIZE  = _FACE_CANVAS - _FACE_LABEL_H # mascot fills the rest above the label
+_FACE_FPS   = 10                           # raised from 5 → smoother motion
+                                           # (gated by firmware's 100ms display tick)
+_FACE_BASE_ROT_DEG = -90                   # rotate composed image 90° so it
+                                           # appears upright when M5 is held
+                                           # vertically on its end. ±90 / 180 swap.
+# Frame-step per send, indexed by attitude state. Higher = faster
+# Mona dance, mirroring the dashboard's --mona-dur. Native gif = 32.6 fps,
+# 176 frames per loop. At 10 fps sender:
+#   STABLE   ~5.9s loop → step 3
+#   WOBBLE   ~0.9s loop → step 20
+#   FALLING! ~0.3s loop → step 60 (capped, looks chaotic = perfect for crit)
+#   IDLE     ~5.9s loop → step 3
+_FACE_STEP = {"off": 3, "calm": 3, "warn": 20, "crit": 60}
+# Ripple-ring period (seconds) per state — mirrors --mona-dur in CSS.
+_FACE_RING_PERIOD = {"off": 4.0, "calm": 4.0, "warn": 0.9, "crit": 0.18}
+# State color = full LCD background (M5 fills entire screen with this; the
+# JPEG canvas also uses it as its bg so they blend seamlessly).
+_FACE_STATE_COLORS = {
+    "off":  (0,   0,   0),     # IDLE → pure black ("通常状態の背景")
+    "calm": (40,  170, 90),    # STABLE → green
+    "warn": (215, 160, 40),    # WOBBLE → amber
+    "crit": (210, 50,  50),    # FALLING! → red
 }
+# Lighter shade of the BG used for the ripple ring so it stays visible on
+# top of its own state color.
+_FACE_RING_COLORS = {
+    "off":  (110, 200, 240),   # cyan ripple on black (matches dashboard)
+    "calm": (170, 255, 200),
+    "warn": (255, 230, 150),
+    "crit": (255, 200, 200),
+}
+_FACE_STATE_LABEL = {                      # (English, Japanese) — mirrors updateMona()
+    "off":  ("IDLE",     "停止中"),
+    "calm": ("STABLE",   "安定"),
+    "warn": ("WOBBLE",   "不安定"),
+    "crit": ("FALLING!", "転倒中!"),
+}
+
+def _load_face_font(size):
+    """Pick a CJK-capable bold sans-serif so both EN and JP labels render."""
+    candidates = [
+        "/System/Library/Fonts/ヒラギノ角ゴシック W7.ttc",
+        "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc",
+        "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/Hiragino Sans GB.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+        "/Library/Fonts/Arial Unicode.ttf",
+    ]
+    for p in candidates:
+        try:
+            return ImageFont.truetype(p, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+_FACE_FONT_EN = None  # 13px latin
+_FACE_FONT_JP = None  # 13px kana
 
 _face = {
     "on": False,
@@ -144,6 +198,8 @@ _face = {
 }
 
 def _load_mascot_frames():
+    """Decode mascot.gif once, cached as RGBA frames preserving native alpha
+    so they composite cleanly onto any state-color background later."""
     if _face["frames"] is not None:
         return _face["frames"]
     if not _PIL_OK or not _MASCOT_GIF.exists():
@@ -155,39 +211,136 @@ def _load_mascot_frames():
             i = 0
             while True:
                 im.seek(i)
-                fr = im.convert("RGBA")
-                fr = fr.resize((_FACE_SIZE, _FACE_SIZE), Image.LANCZOS)
-                bg = Image.new("RGB", fr.size, (0, 0, 0))
-                bg.paste(fr, mask=fr.split()[3])
-                out.append(bg)
+                fr = im.convert("RGBA").resize(
+                    (_FACE_SIZE, _FACE_SIZE), Image.LANCZOS)
+                out.append(fr)
                 i += 1
         except EOFError:
             pass
     _face["frames"] = out
     return out
 
-def _attitude_state():
-    """Pull latest /s from M5 and bucket Angle into calm/warn/crit/off."""
+def _attitude_snapshot():
+    """Pull latest /s and return (state, angle, dangle, motor_on)."""
     try:
         r = requests.get(f"{_runtime['m5_base']}/s", timeout=0.3)
         d = r.json()
     except Exception:
-        return "off"
-    if not d.get("on"):
-        return "off"
-    a = abs(float(d.get("angle", 0.0)))
-    if a < 5.0:
-        return "calm"
-    if a < 15.0:
-        return "warn"
-    return "crit"
+        return ("off", 0.0, 0.0, False)
+    motor_on = bool(d.get("on"))
+    angle    = float(d.get("angle", 0.0))
+    dangle   = float(d.get("dangle", 0.0))
+    if not motor_on:
+        return ("off", angle, dangle, False)
+    a  = abs(angle)
+    da = abs(dangle)
+    # Mirrors updateMona() in tools/templates/index.html.
+    if a >= 15.0 or da > 80.0:
+        state = "crit"
+    elif a >= 5.0 or da > 30.0:
+        state = "warn"
+    else:
+        state = "calm"
+    return (state, angle, dangle, True)
 
-def _build_face_jpeg(frame_rgb, state):
-    color = _FACE_STATE_COLORS.get(state, (90, 90, 90))
-    canvas = Image.new("RGB", (_FACE_SIZE + 8, _FACE_SIZE + 8), color)
-    canvas.paste(frame_rgb, (4, 4))
+def _build_face_jpeg(frame_rgba, state, angle, t):
+    """Compose state-color full-screen background + ripple ring + Mona +
+    bilingual EN/JP label. The composed JPEG is rotated -90° so it reads
+    upright when the M5 is held on its end. Layout (pre-rotation):
+
+        ┌──────────────────────┐  ← entire 128² is filled with state color
+        │      ((( ring )))    │     (M5 also fills the LCD edges with the
+        │   ╭──────────╮       │      same color via /face?bg=RRGGBB so it
+        │   │   MONA   │       │      blends seamlessly across the screen)
+        │   │ (alpha)  │       │
+        │   ╰──────────╯       │
+        │      STABLE          │  ← English label (white, dark stroke)
+        │       安定           │  ← Japanese label
+        └──────────────────────┘
+    """
+    global _FACE_FONT_EN, _FACE_FONT_JP
+    if _FACE_FONT_EN is None:
+        _FACE_FONT_EN = _load_face_font(13)
+    if _FACE_FONT_JP is None:
+        _FACE_FONT_JP = _load_face_font(13)
+
+    bg = _FACE_STATE_COLORS.get(state, (0, 0, 0))
+    ring_col = _FACE_RING_COLORS.get(state, (110, 200, 240))
+    label_en, label_jp = _FACE_STATE_LABEL.get(state, ("", ""))
+
+    # ─── Mona: angle-driven tilt + horizontal flip on negative tilt ───
+    sx   = 1 if angle >= 0 else -1
+    tilt = max(-30.0, min(30.0, angle * 0.7)) * sx
+    mona = frame_rgba
+    if sx == -1:
+        mona = mona.transpose(Image.FLIP_LEFT_RIGHT)
+    if abs(tilt) > 0.5:
+        mona = mona.rotate(-tilt, resample=Image.BILINEAR)  # RGBA → fillcolor stays transparent
+
+    # ─── Canvas filled with state color (no border now — M5 fills the
+    #     surrounding LCD area with the same color so the whole device
+    #     looks uniform). ───
+    canvas = Image.new("RGBA", (_FACE_CANVAS, _FACE_CANVAS), (*bg, 255))
+
+    mx = (_FACE_CANVAS - _FACE_SIZE) // 2
+    my = 0
+    cx = mx + _FACE_SIZE // 2
+    cy = my + _FACE_SIZE // 2
+
+    # ─── Ripple rings (two echoes, staggered) drawn UNDER Mona so the
+    #     character stays in front of the expanding wave. ───
+    period = _FACE_RING_PERIOD.get(state, 4.0)
+    if period > 0:
+        overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        od = ImageDraw.Draw(overlay)
+        n_rings = 2
+        if state == "crit":
+            scale_lo, scale_hi, alpha_max = 0.85, 1.55, 230
+        else:
+            scale_lo, scale_hi, alpha_max = 0.90, 1.45, 170
+        base_r = _FACE_SIZE // 2
+        for k in range(n_rings):
+            phase = ((t + k * period / n_rings) % period) / period
+            scale = scale_lo + (scale_hi - scale_lo) * phase
+            alpha = int(alpha_max * (1.0 - phase))
+            if alpha < 8:
+                continue
+            r = int(base_r * scale)
+            od.ellipse([cx - r, cy - r, cx + r, cy + r],
+                       outline=(*ring_col, alpha), width=2)
+        canvas = Image.alpha_composite(canvas, overlay)
+
+    # ─── Mona pasted on top using its native alpha channel as mask ───
+    canvas.paste(mona, (mx, my), mona)
+
+    # ─── Bilingual label centered in the bottom strip ───
+    draw = ImageDraw.Draw(canvas)
+    text_color  = (255, 255, 255, 255)
+    stroke_col  = (0,   0,   0,   255)
+    label_top_y = _FACE_CANVAS - _FACE_LABEL_H
+    line_h      = _FACE_LABEL_H // 2  # 16
+
+    def _centered_text(s, font, base_y):
+        b = draw.textbbox((0, 0), s, font=font, stroke_width=1)
+        tw = b[2] - b[0]
+        th = b[3] - b[1]
+        tx = (_FACE_CANVAS - tw) // 2 - b[0]
+        ty = base_y + (line_h - th) // 2 - b[1]
+        draw.text((tx, ty), s, font=font, fill=text_color,
+                  stroke_width=1, stroke_fill=stroke_col)
+
+    if label_en:
+        _centered_text(label_en, _FACE_FONT_EN, label_top_y)
+    if label_jp:
+        _centered_text(label_jp, _FACE_FONT_JP, label_top_y + line_h)
+
+    # ─── Final rotation so it reads upright on a vertically-held M5 ───
+    out = canvas.convert("RGB")
+    if _FACE_BASE_ROT_DEG % 360 != 0:
+        out = out.rotate(-_FACE_BASE_ROT_DEG, resample=Image.BILINEAR, expand=False)
+
     buf = io.BytesIO()
-    canvas.save(buf, format="JPEG", quality=70, optimize=False)
+    out.save(buf, format="JPEG", quality=72, optimize=False)
     return buf.getvalue()
 
 def _face_streamer_loop():
@@ -198,23 +351,32 @@ def _face_streamer_loop():
         _face["on"] = False
         return
     idx = 0
+    t_start = time.monotonic()
     while not _face["stop"].is_set():
         t0 = time.monotonic()
-        state = _attitude_state()
-        # crit advances frames at 2x for visible urgency, mirroring the
-        # CSS animation-duration shift on the dashboard.
-        step = 2 if state == "crit" else 1
+        state, angle, _dangle, _on = _attitude_snapshot()
+        step = _FACE_STEP.get(state, 1)
         idx = (idx + step) % len(frames)
         try:
-            jpeg = _build_face_jpeg(frames[idx], state)
-            requests.post(
-                f"{_runtime['m5_base']}/face",
-                data=jpeg,
-                headers={"Content-Type": "image/jpeg"},
+            jpeg = _build_face_jpeg(frames[idx], state, angle, t0 - t_start)
+            # Base64-encode body so JPEG NUL bytes don't trip ESP32 WebServer.
+            payload = base64.b64encode(jpeg)
+            # Send the state color as ?bg=RRGGBB so the M5 can fill the
+            # entire LCD with the same color the JPEG uses, giving the
+            # illusion of a full-screen state takeover.
+            r_bg, g_bg, b_bg = _FACE_STATE_COLORS.get(state, (0, 0, 0))
+            bg_hex = f"{r_bg:02X}{g_bg:02X}{b_bg:02X}"
+            r = requests.post(
+                f"{_runtime['m5_base']}/face?bg={bg_hex}",
+                data=payload,
+                headers={"Content-Type": "text/plain"},
                 timeout=0.4,
             )
-            _face["frames_sent"] += 1
-            _face["last_err"] = ""
+            if r.status_code != 200:
+                _face["last_err"] = f"M5 returned HTTP {r.status_code} (firmware may be outdated — re-flash to add /face)"
+            else:
+                _face["frames_sent"] += 1
+                _face["last_err"] = ""
         except Exception as e:
             _face["last_err"] = str(e)
         # Sleep the remainder of the cycle.
