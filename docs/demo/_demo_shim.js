@@ -198,6 +198,12 @@
       }
       return new Response('OK', { status: 200 });
     }
+    if (url === '/api/m5_target') {
+      // Demo mode has no real backend — return a stub so the widget
+      // doesn't error out. (The widget itself is hidden in demo mode,
+      // but other code paths might still call this endpoint.)
+      return json({ url: '(demo mode — no backend)' });
+    }
     return _origFetch(url, opts);
   };
 
@@ -253,5 +259,170 @@
     a.addEventListener('click', swallow);
     a.addEventListener('touchend', swallow);
     document.body.appendChild(a);
+  });
+})();
+
+(function m5TargetWidget() {
+  // ───────────────────────────────────────────────────────────────────
+  // Floating "M5 target" widget. Lets the user point server.py at a
+  // different M5 IP from the browser (no file edit / no restart).
+  //
+  // Useful when the M5's IP changes between locations:
+  //   home WiFi  → 192.168.10.32
+  //   Pixel hot. → 10.39.x.x (DHCP, varies)
+  //   AP mode    → 192.168.4.1
+  //
+  // Skipped in DEMO mode (no real backend to talk to).
+  // ───────────────────────────────────────────────────────────────────
+  if (window.IPS_DEMO) return;
+
+  const LS = 'ips_m5_target';
+
+  function normalize(raw) {
+    let s = (raw || '').trim().replace(/\/+$/, '');
+    if (!s) return '';
+    if (!/^https?:\/\//i.test(s)) s = 'http://' + s;
+    return s;
+  }
+
+  async function pushToServer(url) {
+    try {
+      const r = await fetch('/api/m5_target', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j.url || null;
+    } catch (e) { return null; }
+  }
+
+  async function fetchCurrent() {
+    try {
+      const r = await fetch('/api/m5_target');
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j.url || null;
+    } catch (e) { return null; }
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const wrap = document.createElement('div');
+    Object.assign(wrap.style, {
+      position: 'fixed', top: '8px', right: '8px', zIndex: 9997,
+      display: 'flex', alignItems: 'center', gap: '6px',
+      background: 'rgba(0,0,0,.55)', border: '1px solid #555',
+      color: '#9adcff', fontFamily: 'Orbitron,sans-serif', fontSize: '10px',
+      letterSpacing: '.18em', padding: '5px 10px',
+      clipPath: 'polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%)',
+    });
+
+    const label = document.createElement('span');
+    label.textContent = '🎯 M5:';
+    label.style.color = '#7fbfff';
+    wrap.appendChild(label);
+
+    const view = document.createElement('span');
+    view.style.color = '#fff';
+    view.style.cursor = 'pointer';
+    view.title = 'click to change';
+    wrap.appendChild(view);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = '10.39.199.241';
+    Object.assign(input.style, {
+      display: 'none',
+      background: '#000', border: '1px solid #7fbfff', color: '#fff',
+      fontFamily: 'monospace', fontSize: '11px',
+      padding: '2px 6px', width: '170px', outline: 'none',
+    });
+    wrap.appendChild(input);
+
+    const btn = document.createElement('button');
+    btn.textContent = 'APPLY';
+    Object.assign(btn.style, {
+      display: 'none',
+      background: '#7fbfff', color: '#000', border: 'none',
+      fontFamily: 'Orbitron,sans-serif', fontSize: '10px',
+      letterSpacing: '.15em', padding: '3px 8px',
+      cursor: 'pointer',
+    });
+    wrap.appendChild(btn);
+
+    const cancel = document.createElement('button');
+    cancel.textContent = '✕';
+    Object.assign(cancel.style, {
+      display: 'none',
+      background: 'transparent', color: '#888', border: '1px solid #555',
+      fontSize: '10px', padding: '2px 6px', cursor: 'pointer',
+    });
+    wrap.appendChild(cancel);
+
+    function setView(url) {
+      view.textContent = url || '(unset)';
+    }
+
+    function showInput(prefill) {
+      view.style.display = 'none';
+      label.style.display = 'none';
+      input.style.display = '';
+      btn.style.display = '';
+      cancel.style.display = '';
+      input.value = prefill || '';
+      input.focus();
+      input.select();
+    }
+    function showView() {
+      view.style.display = '';
+      label.style.display = '';
+      input.style.display = 'none';
+      btn.style.display = 'none';
+      cancel.style.display = 'none';
+    }
+
+    async function apply() {
+      const url = normalize(input.value);
+      if (!url) { input.focus(); return; }
+      const got = await pushToServer(url);
+      if (got) {
+        localStorage.setItem(LS, got);
+        setView(got);
+        view.style.color = '#9fff7f';
+        setTimeout(() => { view.style.color = '#fff'; }, 1200);
+      } else {
+        view.style.color = '#ff7f7f';
+        setTimeout(() => { view.style.color = '#fff'; }, 1500);
+      }
+      showView();
+    }
+
+    view.addEventListener('click', () => showInput(view.textContent));
+    btn.addEventListener('click', apply);
+    cancel.addEventListener('click', showView);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') apply();
+      else if (e.key === 'Escape') showView();
+    });
+
+    // Don't let widget clicks bubble to liveGate's 3-tap unlock corner.
+    const swallow = (ev) => ev.stopPropagation();
+    wrap.addEventListener('click', swallow);
+    wrap.addEventListener('touchend', swallow);
+
+    document.body.appendChild(wrap);
+
+    // Boot: prefer the localStorage value (push it to the server so a
+    // fresh server.py picks up where we left off). Otherwise fetch
+    // whatever the server already has.
+    const saved = localStorage.getItem(LS);
+    if (saved) {
+      const got = await pushToServer(saved);
+      setView(got || saved);
+    } else {
+      const cur = await fetchCurrent();
+      setView(cur || '');
+    }
   });
 })();

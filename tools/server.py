@@ -30,6 +30,19 @@ ROOT    = Path(__file__).parent
 SESSDIR = ROOT / "data" / "sessions"
 SESSDIR.mkdir(parents=True, exist_ok=True)
 
+# Mutable runtime state — the dashboard can override M5_BASE at runtime
+# via POST /api/m5_target without restarting the server. Useful when the
+# device's IP changes between locations (home WiFi vs phone tethering).
+_runtime = {"m5_base": M5_BASE}
+
+def _normalize_url(raw: str) -> str:
+    s = (raw or "").strip().rstrip("/")
+    if not s:
+        return ""
+    if not s.startswith(("http://", "https://")):
+        s = "http://" + s
+    return s
+
 # CORS_ALLOW_ORIGINS env var (comma-sep) wins; else local_config list.
 _env_cors = os.environ.get("CORS_ALLOW_ORIGINS", "").strip()
 if _env_cors:
@@ -63,10 +76,20 @@ def index():
 def dash():
     return send_from_directory(app.static_folder, "dash.html")
 
+@app.route("/api/m5_target", methods=["GET", "POST"])
+def api_m5_target():
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        new_url = _normalize_url(body.get("url", ""))
+        if not new_url:
+            return jsonify({"error": "empty url"}), 400
+        _runtime["m5_base"] = new_url
+    return jsonify({"url": _runtime["m5_base"]})
+
 @app.route("/api/s")
 def api_status():
     try:
-        r = requests.get(f"{M5_BASE}/s", timeout=0.4)
+        r = requests.get(f"{_runtime['m5_base']}/s", timeout=0.4)
         return (r.text, r.status_code, {"Content-Type": "application/json"})
     except Exception as e:
         return jsonify({"error": str(e)}), 502
@@ -75,7 +98,7 @@ def api_status():
 def api_cmd():
     q = request.args.get("q", "")
     try:
-        r = requests.get(f"{M5_BASE}/c", params={"q": q}, timeout=1.0)
+        r = requests.get(f"{_runtime['m5_base']}/c", params={"q": q}, timeout=1.0)
         return (r.text, r.status_code, {"Content-Type": "text/plain"})
     except Exception as e:
         return f"ERR {e}", 502
@@ -142,7 +165,7 @@ def delete_session(sid):
 
 # ── main ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print(f"M5 base   : {M5_BASE}")
+    print(f"M5 base   : {_runtime['m5_base']}  (changeable from dashboard)")
     print(f"Sessions  : {SESSDIR}")
     if CORS_ORIGINS:
         print(f"CORS      : {', '.join(CORS_ORIGINS)}")
