@@ -7,6 +7,16 @@
 ![PID Control](https://img.shields.io/badge/PID-Control-blue?style=for-the-badge)
 
 <p align="center">
+  <a href="https://www.youtube.com/watch?v=MdE459HKGWA">
+    <img src="https://img.youtube.com/vi/MdE459HKGWA/maxresdefault.jpg"
+         alt="🎥 倒立振り子が実際に自立している様子 — クリックで YouTube 再生"
+         width="720">
+  </a>
+  <br>
+  <sub>🎥 <strong><a href="https://www.youtube.com/watch?v=MdE459HKGWA">▶︎ Watch on YouTube</a></strong> — M5StickC Plus が実際に自立し、ブラウザ UI に角度・PID 出力をリアルタイム表示している成功動画 / Real-world success: M5StickC Plus self-balancing while the browser dashboard streams live telemetry</sub>
+</p>
+
+<p align="center">
   <a href="https://ktanino10.github.io/copilot-cli-inverted-pendulum-m5stick/">
     <img src="https://img.shields.io/badge/%E2%96%B6%EF%B8%8E%20LAUNCH%20DEMO-Open%20in%20Browser-22c55e?style=for-the-badge&labelColor=0a0a0c&logo=github"
          alt="Launch the live demo on GitHub Pages"
