@@ -606,6 +606,7 @@ getPitch() = (acc[2] - 1.0) * 57.3
 | 2026-05-01 | 「後ろへ逃げる」問題のログ化、転倒分類表の確立 |
 | 2026-05-02 | チューニングUIの解析強化、マルチSSID + APフォールバック、Pages デモ公開 |
 | 2026-05-03 | Pixel テザリング持ち運び対応・M5 IP 切替ウィジェット・ネットワークの学び |
+| 2026-05-03 | 🔗 LINK MONA — ダッシュボードのマスコットを M5 LCD にネットワーク配信 |
 
 → 詳細は **[`log/progress-log.md`](log/progress-log.md#japanese)** へ
 
@@ -775,6 +776,7 @@ Key milestones:
 | 2026-05-01 | "Drifting backward" issue logged · fall classification table |
 | 2026-05-02 | Tuning UI analytics · multi-SSID + AP fallback · GitHub Pages demo |
 | 2026-05-03 | Pixel tethering portability · M5 target widget · networking learnings |
+| 2026-05-03 | 🔗 LINK MONA — stream the dashboard mascot to the M5 LCD over the network |
 
 → See **[`log/progress-log.md`](log/progress-log.md#english)** for full detail
 

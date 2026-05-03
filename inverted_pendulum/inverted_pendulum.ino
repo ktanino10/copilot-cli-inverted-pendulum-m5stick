@@ -276,8 +276,45 @@ void processSerial() {
 // ============================================================
 //  ディスプレイ
 // ============================================================
+// ─── Face-link state (M5 LCD ⟵ PC streamed Mona via /face POST) ───
+// PC pushes ~5 FPS JPEG frames; we cache the latest into g_face_buf and
+// repaint the right-side 80x80 region only when a new frame arrives.
+// If no frame is received for FACE_TIMEOUT_MS, we revert to text-only
+// mode automatically (fail-safe — never get stuck on a stale face).
+static const int   LCD_W            = 240;
+static const int   LCD_H            = 135;
+static const int   FACE_W           = 80;
+static const int   FACE_H           = 80;
+static const int   FACE_X           = LCD_W - FACE_W - 4;          // right-aligned, 4px margin
+static const int   FACE_Y           = (LCD_H - FACE_H) / 2;        // vertically centered
+static const int   FACE_TEXT_W      = FACE_X - 2;                  // left strip width for status text
+static const uint32_t FACE_TIMEOUT_MS = 5000;
+static const size_t   FACE_BUF_MAX    = 8192;
+
+static volatile bool g_face_active   = false;
+static volatile bool g_face_changed  = false;
+static uint32_t      g_face_last_rx_ms = 0;
+static uint8_t       g_face_buf[FACE_BUF_MAX];
+static size_t        g_face_len     = 0;
+
 void updateDisplay() {
-  StickCP2.Display.fillScreen(BLACK);
+  // Auto-revert face mode if PC streamer stopped pushing frames.
+  static bool prev_face_active = false;
+  if (g_face_active && (millis() - g_face_last_rx_ms) > FACE_TIMEOUT_MS) {
+    g_face_active = false;
+  }
+  bool mode_changed = (prev_face_active != g_face_active);
+  prev_face_active  = g_face_active;
+
+  if (g_face_active) {
+    // Clear only the left status strip — face area is owned by the JPEG path.
+    StickCP2.Display.fillRect(0, 0, FACE_TEXT_W, LCD_H, BLACK);
+  } else {
+    // Text-only mode: clear whole LCD (also wipes any leftover face pixels).
+    StickCP2.Display.fillScreen(BLACK);
+  }
+  (void)mode_changed;  // reserved for future transition effects
+
   StickCP2.Display.setTextSize(2);
   StickCP2.Display.setCursor(0, 0);
   if (motor_sw) {
@@ -302,10 +339,20 @@ void updateDisplay() {
     StickCP2.Display.setTextColor(CYAN);
     if (wifi_ssid_in_use.length() > 0) {
       // Show SSID (first 12 chars) + IP — vital when moving between locations.
-      StickCP2.Display.printf("%s %s", wifi_ssid_in_use.substring(0, 12).c_str(), wifi_ip.c_str());
+      // Trim SSID further when face is active so the right-side mascot has clean room.
+      int ssid_max = g_face_active ? 8 : 12;
+      StickCP2.Display.printf("%s %s",
+        wifi_ssid_in_use.substring(0, ssid_max).c_str(), wifi_ip.c_str());
     } else {
       StickCP2.Display.printf("%s", wifi_ip.c_str());
     }
+  }
+
+  // ─── Face area: redraw only when a brand-new JPEG arrived ───
+  if (g_face_active && g_face_changed) {
+    StickCP2.Display.fillRect(FACE_X, FACE_Y, FACE_W, FACE_H, BLACK);
+    StickCP2.Display.drawJpg(g_face_buf, g_face_len, FACE_X, FACE_Y, FACE_W, FACE_H);
+    g_face_changed = false;
   }
 }
 
@@ -412,14 +459,35 @@ void handleStatus() {
     "\"kp\":%.2f,\"kd\":%.2f,\"ki\":%.2f,\"kspd\":%.3f,"
     "\"ppos\":%.2f,\"pneg\":%.2f,\"bias\":%.2f,\"alim\":%.1f,"
     "\"plim\":%d,\"kpower\":%.4f,\"minp\":%d,\"po\":%.2f,\"batt\":%.2f,"
-    "\"ms\":%lu}",
+    "\"face_link\":%d,\"ms\":%lu}",
     Angle, dAngle, power, motor_sw,
     P_Angle, I_Angle, D_Angle, Speed,
     kp, kd, ki, kspd,
     power_pos_scale, power_neg_scale, targetBias, angle_limit,
     power_limit, kpower, min_drive_power, Pitch_offset, batt,
-    millis());
+    g_face_active ? 1 : 0, millis());
   server.send(200, "application/json", j);
+}
+
+// ─── /face: receive a JPEG frame (binary POST body) and stash it ───
+// PC server.py streams ~5 FPS of the dashboard mascot here. We do NOT
+// decode here (drawJpg in updateDisplay() does that on the next 100ms
+// tick) — keeps this handler short so the control loop stays smooth.
+void handleFace() {
+  if (server.hasArg("plain")) {
+    const String& body = server.arg("plain");
+    size_t len = body.length();
+    if (len > 0 && len <= FACE_BUF_MAX) {
+      memcpy(g_face_buf, body.c_str(), len);
+      g_face_len        = len;
+      g_face_active     = true;
+      g_face_last_rx_ms = millis();
+      g_face_changed    = true;
+      server.send(200, "text/plain", "ok");
+      return;
+    }
+  }
+  server.send(400, "text/plain", "bad");
 }
 
 // ─── WiFi: try every configured network, then fall back to soft-AP ──
@@ -501,6 +569,7 @@ void setupWiFi() {
     server.on("/", handleRoot);
     server.on("/c", handleCmd);
     server.on("/s", handleStatus);
+    server.on("/face", HTTP_POST, handleFace);
     server.begin();
   }
 }

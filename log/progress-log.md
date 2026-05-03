@@ -557,6 +557,94 @@ alias ips-kill='lsof -ti :5000 | xargs kill 2>/dev/null && echo "freed port 5000
 
 ---
 
+### 2026-05-03 (PM): 🔗 LINK MONA — ダッシュボードのモナを M5 LCD にネットワーク配信
+
+ダッシュボードのモナ（角度状態で色や動きが変わるマスコット）を、**M5StickC Plus2 の LCD にも同じものを表示** したい、という話。
+
+> 💡 アイデア: GIF を M5 のフラッシュに焼くと容量を食う（mascot.gif は **3.5 MB**）。
+> → **PC からネットワーク経由で 1フレームずつ送る** ことで、M5 側の容量消費ゼロでミラー表示できる。
+
+#### 1. 設計
+
+```
+[ブラウザ Mona]                [PC: server.py]                 [M5 LCD]
+    │                              │                              │
+    🔗 LINK ──▶ /api/lcd_link ──▶ ストリーマースレッド開始       │
+                                   │                              │
+                          200ms 周期 (5 FPS) で:                  │
+                          1. mascot.gif の次フレーム取得 (Pillow)  │
+                          2. 80×80 にリサイズ                      │
+                          3. Angle で 4色枠 (灰/緑/黄/赤) を tint  │
+                          4. JPEG エンコード (~2 KB)               │
+                          5. POST http://M5/face ───────────────▶  │
+                                                                  ▼
+                                                   drawJpg() で右側 80×80 に描画
+                                                   左側は従来の PID/IP テキスト維持
+                                                   5秒受信なし → 自動で全テキスト復帰
+```
+
+#### 2. ダッシュボード上の操作
+
+上中央 **「M5: ◯◯」ウィジェット** の隣に **🔓 LINK MONA** ボタンを追加。
+
+- 押すと → **🔗 LINKED** に切り替わって緑点灯、PC が M5 LCD にモナを送り始める
+- もう一度押すと → **🔓 LINK MONA** に戻り、ストリーミング停止
+
+「IP を打ち込む途中に勝手に LCD が顔モードに切り替わって混乱する」を避けるため、**LINK は明示的なオプトイン**。普段は今までどおり IP/SSID 表示。
+
+#### 3. M5 LCD レイアウト（LINK 中）
+
+```
+┌──────────────────────────────────────┐
+│ ON  +1.2                  ┌──────┐  │
+│ P=10.0 I=0.0 D=0.4        │      │  │
+│ pw=-100 L=1600 R=1400     │ Mona │  │  ← 80×80 ストリーミング
+│ po=0 po2=0.0 4.1V         │      │  │
+│ HomeWiFi 192.168.10.32    └──────┘  │
+└──────────────────────────────────────┘
+```
+
+- 左側：従来テキスト（ON/OFF・角度・PID・電源・電池・SSID/IP）すべて維持
+- 右側：80×80 のモナ（5 FPS）
+
+#### 4. 状態別の枠色（角度連動）
+
+| `|Angle|` | 状態 | 枠色 | 意味 |
+|---|---|---|---|
+| OFF | off | 灰色 | 制御停止中 |
+| < 5° | calm | 緑 | 安定中（緑帯） |
+| 5–15° | warn | 黄 | 揺れ始め |
+| ≥ 15° | crit | 赤 | 倒れそう／倒れた（フレームを2倍速で進めて緊迫感） |
+
+ダッシュボードの CSS drop-shadow で表現していた「色変化」を、ネットワーク配信先でも視覚的に再現。
+
+#### 5. フェイルセーフ
+
+- **5秒間 `/face` 受信が途切れる → M5 側で自動的にテキスト全画面表示に戻る**（PC が落ちても LCD が固まらない）
+- ストリーマースレッドは daemon 化、PC のサーバを終了（`Ctrl+C`）すれば自動的に止まる
+- M5 が圏外でも `requests.post(timeout=0.4)` で短時間で諦め、次の周期に再挑戦
+
+#### 6. 通信負荷
+
+- フレームサイズ：~2 KB（80×80 JPEG quality=70）
+- 周期：200ms (5 FPS)
+- 帯域：約 **10 KB/s** — テザリングでも余裕
+- M5 側 CPU：drawJpg 1回 ~30-50ms。50Hz 制御ループ（10ms周期）に影響しないよう、新フレーム到着時のみ描画
+
+#### 7. 実装ファイル
+
+- `firmware/inverted_pendulum/inverted_pendulum.ino` — `/face` POST ハンドラ・`updateDisplay()` 改修・`g_face_active` タイムアウト復帰
+- `tools/server.py` — `/api/lcd_link` エンドポイント・Pillow ベースのストリーマースレッド・状態判定
+- `tools/templates/_demo_shim.js` — M5 ウィジェット内に LINK MONA トグルボタン追加（DEMO モードでは描画されないので Pages 側は無影響）
+
+#### 8. 学んだこと
+
+- **GIF を「ファイルとして保存」せず「フレーム単位でストリーミング」** することで、組み込みデバイスの容量制約を回避できる
+- **5 FPS でも雰囲気は十分伝わる** — 完全同期は無理だが、状態変化（緑→黄→赤）は1秒以内に反映されるので視覚的フィードバックとして機能する
+- **ESP32 `WebServer` の `arg("plain")`** は実は raw POST body（バイナリでも）を取れる便利な仕様
+
+---
+
 <a id="english"></a>
 ## English
 
@@ -1054,3 +1142,91 @@ alias ips-kill='lsof -ti :5000 | xargs kill 2>/dev/null && echo "freed port 5000
 - ✅ **A phone can be a WiFi router** — that's tethering
 - ✅ **IPs change when you "move house"** — but the dashboard widget rewrites it; no need to touch code
 - ✅ **A server sits between the browser and the M5** — `ips` brings it up in one shot
+
+### 2026-05-03 (PM): 🔗 LINK MONA — stream the dashboard mascot to the M5 LCD over the network
+
+Goal: take the same Mona (the angle-reactive mascot on the dashboard) and **also show it on the M5StickC Plus2's LCD**.
+
+> 💡 Idea: burning a GIF into the device's flash is wasteful (mascot.gif is **3.5 MB**).
+> → **Stream one frame at a time from the PC over the network** — zero storage on the M5, faithful mirror of the dashboard.
+
+#### 1. Design
+
+```
+[browser Mona]              [PC: server.py]                  [M5 LCD]
+    │                            │                              │
+    🔗 LINK ──▶ /api/lcd_link ──▶ start streamer thread          │
+                                 │                              │
+                       every 200 ms (5 FPS):                    │
+                       1. next mascot.gif frame (Pillow)        │
+                       2. resize to 80×80                       │
+                       3. tint border by Angle (4 colors)       │
+                       4. JPEG-encode (~2 KB)                   │
+                       5. POST http://M5/face ────────────────▶ │
+                                                                ▼
+                                                drawJpg() into right 80×80
+                                                left side keeps PID/IP text
+                                                5 s of silence → auto-revert
+```
+
+#### 2. Dashboard control
+
+A **🔓 LINK MONA** button is added next to the existing top-center **"M5: ◯◯"** widget.
+
+- Click → switches to **🔗 LINKED** (green); PC starts streaming Mona to the M5 LCD
+- Click again → reverts to **🔓 LINK MONA**; streaming stops
+
+To avoid surprising the user mid-IP-typing, **LINK is an explicit opt-in**. By default the M5 LCD keeps showing IP/SSID as before.
+
+#### 3. M5 LCD layout (while LINKED)
+
+```
+┌──────────────────────────────────────┐
+│ ON  +1.2                  ┌──────┐  │
+│ P=10.0 I=0.0 D=0.4        │      │  │
+│ pw=-100 L=1600 R=1400     │ Mona │  │  ← 80×80 streaming
+│ po=0 po2=0.0 4.1V         │      │  │
+│ HomeWiFi 192.168.10.32    └──────┘  │
+└──────────────────────────────────────┘
+```
+
+- Left: existing text (ON/OFF · angle · PID · power · battery · SSID/IP) — all preserved
+- Right: 80×80 Mona (5 FPS)
+
+#### 4. State-driven border color (Angle linkage)
+
+| `|Angle|` | State | Border | Meaning |
+|---|---|---|---|
+| OFF | off | gray | control disabled |
+| < 5° | calm | green | stable (in green band) |
+| 5–15° | warn | amber | starting to wobble |
+| ≥ 15° | crit | red | about to fall / fell (frames advance 2× for visual urgency) |
+
+Reproduces the dashboard's CSS drop-shadow color shift on the streamed side.
+
+#### 5. Failsafes
+
+- **No `/face` for 5 s → M5 auto-reverts to full-text display** (LCD never gets stuck on a stale face)
+- Streamer thread is daemonized — `Ctrl+C` of `server.py` cleanly stops it
+- Even if M5 is unreachable, `requests.post(timeout=0.4)` gives up quickly and retries on the next cycle
+
+#### 6. Network load
+
+- Frame size: ~2 KB (80×80 JPEG quality=70)
+- Cycle: 200 ms (5 FPS)
+- Bandwidth: about **10 KB/s** — comfortable even on phone tethering
+- M5 CPU: `drawJpg` ~30–50 ms per call. Only fires when a new frame arrives, so the 50 Hz control loop (10 ms cycle) stays unaffected.
+
+#### 7. Files touched
+
+- `firmware/inverted_pendulum/inverted_pendulum.ino` — new `/face` POST handler, `updateDisplay()` refit, `g_face_active` timeout revert
+- `tools/server.py` — `/api/lcd_link` endpoint + Pillow-based streamer thread + state classifier
+- `tools/templates/_demo_shim.js` — adds the LINK MONA toggle into the M5 widget (skipped in DEMO mode, so Pages is unaffected)
+
+#### 8. Lessons
+
+- **Streaming a GIF frame-by-frame instead of storing it as a file** sidesteps embedded-flash size limits
+- **Even 5 FPS conveys the mood adequately** — perfect sync isn't possible, but state transitions (green → amber → red) reach the LCD within 1 s so the visual feedback still works
+- **ESP32 `WebServer.arg("plain")`** turns out to expose the raw POST body (binary-safe) — perfect for shipping JPEGs without multipart
+
+---

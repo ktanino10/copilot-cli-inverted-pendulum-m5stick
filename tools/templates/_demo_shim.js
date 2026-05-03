@@ -412,6 +412,69 @@
     wrap.addEventListener('click', swallow);
     wrap.addEventListener('touchend', swallow);
 
+    // ─── 🔗 LINK MONA toggle (mirror dashboard mascot to M5 LCD) ───
+    // Server pushes ~5 FPS JPEG frames of the dashboard mascot to the
+    // M5's /face endpoint. Off by default so the IP/SSID stays visible
+    // when the user is still configuring the device.
+    const sep = document.createElement('span');
+    sep.textContent = '·';
+    sep.style.color = '#555';
+    sep.style.padding = '0 4px';
+    wrap.appendChild(sep);
+
+    const linkBtn = document.createElement('button');
+    linkBtn.type = 'button';
+    Object.assign(linkBtn.style, {
+      background: 'transparent', color: '#9adcff',
+      border: '1px solid #555', cursor: 'pointer',
+      fontFamily: 'Orbitron,sans-serif', fontSize: '10px',
+      letterSpacing: '.18em', padding: '3px 8px',
+      transition: 'background .15s, color .15s, border-color .15s',
+    });
+    wrap.appendChild(linkBtn);
+
+    let linked = false;
+    function paintLinkBtn() {
+      if (linked) {
+        linkBtn.textContent = '🔗 LINKED';
+        linkBtn.style.color = '#000';
+        linkBtn.style.background = '#9fff7f';
+        linkBtn.style.borderColor = '#9fff7f';
+      } else {
+        linkBtn.textContent = '🔓 LINK MONA';
+        linkBtn.style.color = '#9adcff';
+        linkBtn.style.background = 'transparent';
+        linkBtn.style.borderColor = '#555';
+      }
+    }
+    paintLinkBtn();
+
+    async function toggleLink() {
+      const want = !linked;
+      linkBtn.disabled = true;
+      try {
+        const r = await fetch('/api/lcd_link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ on: want }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok) {
+          linked = !!j.on;
+        } else {
+          linkBtn.style.color = '#ff7f7f';
+          setTimeout(() => paintLinkBtn(), 1200);
+          if (j && j.error) console.warn('lcd_link:', j.error);
+        }
+      } catch (e) {
+        console.warn('lcd_link toggle failed:', e);
+      } finally {
+        linkBtn.disabled = false;
+        paintLinkBtn();
+      }
+    }
+    linkBtn.addEventListener('click', toggleLink);
+
     document.body.appendChild(wrap);
 
     // Boot: prefer the localStorage value (push it to the server so a
@@ -425,5 +488,16 @@
       const cur = await fetchCurrent();
       setView(cur || '');
     }
+
+    // Sync the LINK button with whatever the server thinks the state is
+    // (in case server.py was restarted while the page stayed open).
+    try {
+      const r = await fetch('/api/lcd_link');
+      if (r.ok) {
+        const j = await r.json();
+        linked = !!j.on;
+        paintLinkBtn();
+      }
+    } catch (e) { /* server not up yet — leave default */ }
   });
 })();
