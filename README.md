@@ -60,41 +60,53 @@ M5StickC Plus を使った倒立振子（自立バランスロボット）のプ
 ```
 copilot-cli-inverted-pendulum-m5stick/
 │
-├── README.md                          ← 📌 今読んでいるファイル（概要・進捗・リンク集）
+├── README.md                          ← 📌 今読んでいるファイル（概要・使い方・リンク集）
 │
 ├── inverted_pendulum/
-│   └── inverted_pendulum.ino          ← 🎯 メインファームウェア（PID制御 + カルマンフィルタ）
-│                                         これが倒立振子を動かす本体コード
+│   └── inverted_pendulum.ino          ← 🎯 メインファームウェア（PID制御 + カルマンフィルタ + WebUI）
 │
 ├── servo_test/
 │   └── servo_test.ino                 ← 🔧 サーボ動作確認用テストスケッチ
-│
 ├── servo_diag/
 │   └── servo_diag.ino                 ← 🔍 GPIO全ピン自動スキャン診断スケッチ
-│
 ├── servo_calibrate/
 │   └── servo_calibrate.ino            ← 🔧 サーボキャリブレーションツール
-│
 ├── motor_dir_test/
 │   └── motor_dir_test.ino             ← 🔧 モーター方向テスト / IMU軸ビューアー
-│
 ├── octocat_display/
 │   └── octocat_display.ino            ← 🐙 GitHub ステッカースライドショー（息抜き）
 │
-├── tools/
+├── tools/                             ← 🛠️ ホストPC側ツール群
+│   ├── server.py                      ← 🌐 Flask プロキシサーバ（PC ⇄ M5、ダッシュボード配信）
+│   ├── build_demo.py                  ← 🏗️ docs/demo/ をテンプレートから生成
 │   ├── monitor.py                     ← 📊 リアルタイムPIDモニター（シリアル）
 │   ├── auto_tune.py                   ← 🔬 自動PIDパラメータスイープ
 │   ├── collect_data.py                ← 📝 シリアルデータ収集
 │   ├── visualize_root.py              ← 📈 CERN ROOT / matplotlib可視化
-│   └── data/                          ← 📂 収集データ・ヒートマップ画像
+│   ├── upload.sh                      ← ⬆️ arduino-cli でファーム書き込み
+│   ├── run_server.sh                  ← ▶️ server.py 起動ヘルパ
+│   ├── start_tunnel.sh                ← 🛡️ Tailscale トンネル起動ヘルパ
+│   ├── local_config.example.py        ← ⚙️ 個人設定のテンプレート（IP / パスワード等）
+│   ├── requirements.txt               ← 🐍 Python 依存
+│   ├── templates/                     ← 🎨 ダッシュボードのソース (index.html / dash.html / _demo_shim.js)
+│   │                                     build_demo.py が docs/demo/ にビルドする元
+│   └── data/                          ← 📂 収集データ・ヒートマップ画像・実機セッション記録（gitignore）
+│       └── sessions/                  ← 🎮 倒立試行ごとのスコア＆波形 JSON/CSV
 │
-└── docs/
-    ├── pid_guide.md                   ← 🎓 PID制御 初心者ガイド
-    └── pid_theory.md                  ← 📐 PID制御 理論編（上級者向け）
-
-└── log/
-    ├── progress-log.ja.md             ← 📜 試行錯誤の日次実験ログ（日本語）
-    └── progress-log.en.md             ← 📜 Daily experiment log (English)
+├── docs/                              ← 📚 ドキュメントと公開デモ
+│   ├── pid_guide.md                   ← 🎓 PID制御 初心者ガイド
+│   ├── pid_theory.md                  ← 📐 PID制御 理論編（上級者向け）
+│   ├── glossary.md                    ← 📔 制御工学用語集
+│   ├── wifi_communication.md          ← 📶 通信モデル・WiFi設計の解説
+│   └── demo/                          ← 🌍 GitHub Pages 公開デモ（build_demo.py の出力）
+│       ├── index.html                 ←   ガジェット風ホーム
+│       ├── dash.html                  ←   STATS LAB / TEST ARCHIVE ダッシュボード
+│       ├── _demo_shim.js              ←   /api/* をブラウザ内でモックする層
+│       ├── data/sessions/             ←   実機キャプチャから生成された9件のセッション
+│       └── assets/                    ←   GIF・画像
+│
+└── log/                               ← 📜 詳細な日次実験ログ（README から切り出し）
+    └── progress-log.md                ← 試行錯誤の歴史（日本語＋English バイリンガル）
 ```
 
 #### 読む順番のおすすめ
@@ -581,7 +593,7 @@ getPitch() = (acc[2] - 1.0) * 57.3
 
 ### 進捗ログ・実験ログ
 
-> 詳細な日次実験ログ（半田付け→ファーム移植→ハードウェアトラブル→IMU軸特定→PIDチューニング→GitHub Pages デモ化、2026-04-13〜2026-05-02）は **[`log/progress-log.ja.md`](log/progress-log.ja.md)** に切り出しました。
+> 詳細な日次実験ログ（半田付け→ファーム移植→ハードウェアトラブル→IMU軸特定→PIDチューニング→GitHub Pages デモ化、2026-04-13〜2026-05-02）は **[`log/progress-log.md`](log/progress-log.md#japanese)** に切り出しました。
 
 主なマイルストーン:
 
@@ -594,7 +606,7 @@ getPitch() = (acc[2] - 1.0) * 57.3
 | 2026-05-01 | 「後ろへ逃げる」問題のログ化、転倒分類表の確立 |
 | 2026-05-02 | チューニングUIの解析強化、マルチSSID + APフォールバック、Pages デモ公開 |
 
-→ 詳細は **[`log/progress-log.ja.md`](log/progress-log.ja.md)** へ
+→ 詳細は **[`log/progress-log.md`](log/progress-log.md#japanese)** へ
 
 ### 🙏 謝辞
 
@@ -627,40 +639,53 @@ An overview of the entire repository — **what's where** and **where to start r
 ```
 copilot-cli-inverted-pendulum-m5stick/
 │
-├── README.md                          ← 📌 You are here (overview, progress, links)
+├── README.md                          ← 📌 You are here (overview, usage, links)
 │
 ├── inverted_pendulum/
-│   └── inverted_pendulum.ino          ← 🎯 Main firmware (PID control + Kalman filter)
+│   └── inverted_pendulum.ino          ← 🎯 Main firmware (PID + Kalman filter + WebUI)
 │
 ├── servo_test/
 │   └── servo_test.ino                 ← 🔧 Servo test sketch
-│
 ├── servo_diag/
 │   └── servo_diag.ino                 ← 🔍 GPIO auto-scan diagnostic sketch
-│
 ├── servo_calibrate/
 │   └── servo_calibrate.ino            ← 🔧 Servo calibration tool
-│
 ├── motor_dir_test/
 │   └── motor_dir_test.ino             ← 🔧 Motor direction test / IMU axis viewer
-│
 ├── octocat_display/
 │   └── octocat_display.ino            ← 🐙 GitHub sticker slideshow (fun break)
 │
-├── tools/
+├── tools/                             ← 🛠️ Host-side tools
+│   ├── server.py                      ← 🌐 Flask proxy (PC ⇄ M5, dashboard host)
+│   ├── build_demo.py                  ← 🏗️ Builds docs/demo/ from templates
 │   ├── monitor.py                     ← 📊 Real-time PID monitor (serial)
 │   ├── auto_tune.py                   ← 🔬 Automatic PID parameter sweep
 │   ├── collect_data.py                ← 📝 Serial data collection
 │   ├── visualize_root.py              ← 📈 CERN ROOT / matplotlib visualization
-│   └── data/                          ← 📂 Collected data & heatmap images
+│   ├── upload.sh                      ← ⬆️ Flash firmware via arduino-cli
+│   ├── run_server.sh                  ← ▶️ Helper to start server.py
+│   ├── start_tunnel.sh                ← 🛡️ Helper to start Tailscale tunnel
+│   ├── local_config.example.py        ← ⚙️ Template for personal config (IP / password)
+│   ├── requirements.txt               ← 🐍 Python dependencies
+│   ├── templates/                     ← 🎨 Dashboard source (index.html / dash.html / _demo_shim.js)
+│   │                                     build_demo.py compiles these into docs/demo/
+│   └── data/                          ← 📂 Captures, heatmaps, real-device sessions (gitignored)
+│       └── sessions/                  ←   Per-attempt JSON/CSV with score & waveform
 │
-└── docs/
-    ├── pid_guide.md                   ← 🎓 PID Control — Beginner's Guide
-    └── pid_theory.md                  ← 📐 PID Control — Theory (Advanced)
-
-└── log/
-    ├── progress-log.ja.md             ← 📜 試行錯誤の日次実験ログ (Japanese)
-    └── progress-log.en.md             ← 📜 Daily experiment log (English)
+├── docs/                              ← 📚 Documentation & published demo
+│   ├── pid_guide.md                   ← 🎓 PID Control — Beginner's Guide
+│   ├── pid_theory.md                  ← 📐 PID Control — Theory (Advanced)
+│   ├── glossary.md                    ← 📔 Control engineering glossary
+│   ├── wifi_communication.md          ← 📶 Communication model & WiFi design
+│   └── demo/                          ← 🌍 GitHub Pages public demo (output of build_demo.py)
+│       ├── index.html                 ←   Gadget-styled landing page
+│       ├── dash.html                  ←   STATS LAB / TEST ARCHIVE dashboard
+│       ├── _demo_shim.js              ←   In-browser /api/* mock layer
+│       ├── data/sessions/             ←   9 sessions generated from real captures
+│       └── assets/                    ←   GIFs & images
+│
+└── log/                               ← 📜 Detailed daily experiment log (extracted from README)
+    └── progress-log.md                ← History of trial-and-error (Japanese + English bilingual)
 ```
 
 #### Suggested Reading Order
@@ -735,7 +760,7 @@ The learning materials are placed before the experiment logs so the theory can b
 
 ### Progress Log
 
-> The detailed daily experiment log (soldering → firmware port → hardware troubles → IMU axis identification → PID tuning → GitHub Pages demo, 2026-04-13 to 2026-05-02) has been moved to **[`log/progress-log.en.md`](log/progress-log.en.md)**.
+> The detailed daily experiment log (soldering → firmware port → hardware troubles → IMU axis identification → PID tuning → GitHub Pages demo, 2026-04-13 to 2026-05-02) has been moved to **[`log/progress-log.md`](log/progress-log.md#english)**.
 
 Key milestones:
 
@@ -748,7 +773,7 @@ Key milestones:
 | 2026-05-01 | "Drifting backward" issue logged · fall classification table |
 | 2026-05-02 | Tuning UI analytics · multi-SSID + AP fallback · GitHub Pages demo |
 
-→ See **[`log/progress-log.en.md`](log/progress-log.en.md)** for full detail
+→ See **[`log/progress-log.md`](log/progress-log.md#english)** for full detail
 
 ### 🙏 Acknowledgments
 
