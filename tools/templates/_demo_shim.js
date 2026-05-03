@@ -161,11 +161,27 @@
   window.fetch = async (url, opts) => {
     if (typeof url !== 'string') return _origFetch(url, opts);
 
-    if (url.startsWith('/api/s')) {
+    // ⚠ Order matters: /api/sessions and /api/sessions/<id> MUST be matched
+    // BEFORE the /api/s status endpoint, otherwise startsWith('/api/s')
+    // would swallow them and return the device state instead of session data.
+    if (url === '/api/sessions' || url.startsWith('/api/sessions?')) {
+      if (opts && opts.method && opts.method.toUpperCase() === 'POST') {
+        return json({ id: 'demo_' + Date.now(), path: '(demo, not saved)' });
+      }
+      try { return await _origFetch(dataPath('data/sessions/index.json')); }
+      catch (e) { return json([]); }
+    }
+    const sm = url.match(/^\/api\/sessions\/(.+?)\/?$/);
+    if (sm) {
+      if (opts && opts.method && opts.method.toUpperCase() === 'DELETE') return json({ ok: true });
+      try { return await _origFetch(dataPath(`data/sessions/${sm[1]}.json`)); }
+      catch (e) { return json({ error: 'not found' }, 404); }
+    }
+    if (url === '/api/s' || url.startsWith('/api/s?')) {
       await new Promise(r => setTimeout(r, 30));
       return json(dev);
     }
-    if (url.startsWith('/api/c')) {
+    if (url === '/api/c' || url.startsWith('/api/c?')) {
       const m = url.match(/[?&]q=([^&]+)/);
       if (m) {
         const q = decodeURIComponent(m[1]);
@@ -181,19 +197,6 @@
         }
       }
       return new Response('OK', { status: 200 });
-    }
-    if (url === '/api/sessions') {
-      if (opts && opts.method && opts.method.toUpperCase() === 'POST') {
-        return json({ id: 'demo_' + Date.now(), path: '(demo, not saved)' });
-      }
-      try { return await _origFetch(dataPath('data/sessions/index.json')); }
-      catch (e) { return json([]); }
-    }
-    const sm = url.match(/^\/api\/sessions\/(.+?)\/?$/);
-    if (sm) {
-      if (opts && opts.method && opts.method.toUpperCase() === 'DELETE') return json({ ok: true });
-      try { return await _origFetch(dataPath(`data/sessions/${sm[1]}.json`)); }
-      catch (e) { return json({ error: 'not found' }, 404); }
     }
     return _origFetch(url, opts);
   };
