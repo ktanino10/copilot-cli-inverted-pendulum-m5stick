@@ -1038,7 +1038,16 @@ e4a80ce  ブート画面サブタイトルから "SEED" 表記削除
 - GitHub Actions でデモを自動再ビルド + Pages デプロイ
 - セッションのスコア順ランキングをCSVエクスポート
 
+### 🙏 謝辞
 
+このプロジェクトは、以下の方々の先行された素晴らしいお仕事のおかげで成立しています。心より感謝申し上げます。
+
+- **[しんさん (n_shinichi)](https://n-shinichi.hatenablog.com/entry/2025/08/31/163903)** — Interface 誌の倒立振子キットの制作者であり、本リポジトリのファームウェアの土台となったサンプルスケッチと丁寧な解説記事を公開してくださっています。本プロジェクトの IMU 軸の取り扱い・PD 制御の構造・パルス駆動の考え方は、すべて n_shinichi 氏の公開コードと記事を参照して理解・移植したものです。
+- **[Interface 誌 / CQ 出版](https://interface.cqpub.co.jp/202509st/)** — 「自分で動くハードウェア」を初学者でも組み立てて動かせる形に落とし込んだ素晴らしいキットと、その背景にある制御理論を読みやすくまとめてくださった編集・執筆チームの皆様。本キットがなければ、この学習体験そのものが存在しませんでした。
+
+> 本リポジトリは上記の素晴らしい先行成果に対する敬意を持って、個人の学習・実験記録としてオープンにしているものです。商用流用や再配布を意図したものではなく、オリジナルの記事・キットの購入と参照を強く推奨します。
+
+### 参考資料
 
 - [Interface誌 記事ページ](https://interface.cqpub.co.jp/202509st/)
 - [しんさん (n_shinichi) の倒立振子ブログ記事](https://n-shinichi.hatenablog.com/entry/2025/08/31/163903) — M5StickC Plus / Plus2 向けサンプルスケッチの解説。Interface誌キットの制作者ご本人による技術情報
@@ -1350,6 +1359,15 @@ Pitch_offset: 0.0 (upright ≈ 0° with atan2 version)
 - [ ] Balance test without USB cable
 - [ ] PID fine-tuning (auto_tune.py + heatmap)
 - [ ] Time-series data visualization with CERN ROOT
+
+### 🙏 Acknowledgments
+
+This project would not exist without the wonderful prior work of the following creators. I am deeply grateful.
+
+- **[n_shinichi (しんさん)](https://n-shinichi.hatenablog.com/entry/2025/08/31/163903)** — Creator of the original Interface Magazine inverted pendulum kit, and author of the sample sketches and detailed blog post that this repository's firmware is built upon. The IMU axis handling, the PD control structure, and the pulse-drive approach used in this project are all derived from studying and porting n_shinichi's published code and articles.
+- **[Interface Magazine / CQ Publishing](https://interface.cqpub.co.jp/202509st/)** — The editorial and writing team who packaged "hardware you can actually build and move" into a kit accessible to beginners, and who explained the underlying control theory in such a readable form. None of this learning experience would exist without this kit.
+
+> This repository is a personal learning and experimentation record, made open with great respect for the prior work cited above. It is not intended for commercial reuse or redistribution. Please support the original by purchasing the magazine and the kit.
 
 ### References
 
