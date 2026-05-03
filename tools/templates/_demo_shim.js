@@ -310,16 +310,17 @@
   document.addEventListener('DOMContentLoaded', async () => {
     const wrap = document.createElement('div');
     Object.assign(wrap.style, {
-      position: 'fixed', top: '8px', right: '8px', zIndex: 9997,
+      position: 'fixed', top: '8px', left: '50%', transform: 'translateX(-50%)',
+      zIndex: 9997,
       display: 'flex', alignItems: 'center', gap: '6px',
       background: 'rgba(0,0,0,.55)', border: '1px solid #555',
       color: '#9adcff', fontFamily: 'Orbitron,sans-serif', fontSize: '10px',
-      letterSpacing: '.18em', padding: '5px 10px',
-      clipPath: 'polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%)',
+      letterSpacing: '.18em', padding: '5px 14px',
+      clipPath: 'polygon(8px 0,calc(100% - 8px) 0,100% 100%,0 100%)',
     });
 
     const label = document.createElement('span');
-    label.textContent = '🎯 M5:';
+    label.textContent = 'M5:';
     label.style.color = '#7fbfff';
     wrap.appendChild(label);
 
