@@ -34,38 +34,6 @@
 
 ---
 
-### 📹 LINK MONA vs 精度比較動画 (2026-05-04) / LINK MONA vs precision A/B videos
-
-PC ダッシュボードのマスコット **Mona** を M5 LCD にライブストリーム配信する [LINK MONA](#-link-mona-m5-lcd--pc-streamed-mona-via-face-post) 機能を作ったところ、**Mona を表示すると倒立精度が落ちる** ことが実機で観測されました。同じ PID 値・同じハードで LINK ON/OFF だけを切り替えた A/B 比較動画と、原因分析を [progress-log.md](log/progress-log.md#2026-05-04-午前-🐛-core-0-化だけでは足りなかった--mona-link-on-で倒れやすい問題の-残り原因-分析) に記録しています。
-
-> 🎵 一部 BGM は深夜テンションで付けたもの / Some BGM was added in late-night-tension mood
-
-<table align="center">
-<tr>
-<td align="center" width="33%">
-  <a href="https://youtube.com/shorts/pW9kolt9mTY"><img src="https://img.youtube.com/vi/pW9kolt9mTY/maxresdefault.jpg" alt="Mona herself on the M5 LCD" width="320"></a><br>
-  <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/pW9kolt9mTY">① Mona 本人 / Mona herself</a></strong><br>M5 LCD 上の LINK MONA</sub>
-</td>
-<td align="center" width="33%">
-  <a href="https://youtube.com/shorts/zf6XWxcPdcU"><img src="https://img.youtube.com/vi/zf6XWxcPdcU/maxresdefault.jpg" alt="Balancing with Mona" width="320"></a><br>
-  <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/zf6XWxcPdcU">② Mona あり / With Mona</a></strong><br>不安定・頻繁に倒れる<br>Visibly unstable</sub>
-</td>
-<td align="center" width="33%">
-  <a href="https://youtube.com/shorts/9cm7EjcPE6I"><img src="https://img.youtube.com/vi/9cm7EjcPE6I/maxresdefault.jpg" alt="Balancing without Mona" width="320"></a><br>
-  <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/9cm7EjcPE6I">③ Mona なし / Without Mona</a></strong><br>安定・長時間立ち続ける<br>Stable</sub>
-</td>
-</tr>
-</table>
-
-主な原因（詳細は progress-log.md）/ Main causes (full analysis in progress-log.md):
-
-- **HTTP/base64 が依然 Core 1 を ~10-20 ms/100 ms 占有** → PID tick が周期的に 2 つ抜ける / HTTP & base64 still occupy ~10-20 ms / 100 ms on Core 1, periodically dropping 2 PID ticks
-- **LCD 全画面着色で消費電流 ~30 → ~70-100 mA** → 200 mAh バッテリでサーボ電圧 sag → トルク低下 / Full-color LCD raises current from ~30 to ~70-100 mA → on a 200 mAh battery, servo rail sags → torque drops
-- **10 Hz WiFi RX 連続で電源レールにリップル** / Continuous 10 Hz WiFi RX puts ripple on the supply rail
-- **推奨運用 / Recommended use**: 「LINK MONA は監視・チューニング用、本気の倒立評価時は OFF」 / "LINK MONA is for monitoring & tuning; turn it OFF for serious balance evaluation"
-
----
-
 **[日本語](#日本語) | [English](#english)**
 
 ---
