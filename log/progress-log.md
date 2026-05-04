@@ -845,8 +845,8 @@ if (millis() > ms100) {
   <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/zf6XWxcPdcU">② Mona あり</a></strong><br>LINK ON 状態で倒立<br><strong>明らかに不安定、頻繁に倒れる</strong></sub>
 </td>
 <td align="center" width="33%">
-  <a href="https://youtube.com/shorts/Icvz28aQBTk"><img src="https://img.youtube.com/vi/Icvz28aQBTk/maxresdefault.jpg" alt="Monaなし倒立" width="320"></a><br>
-  <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/Icvz28aQBTk">③ Mona なし</a></strong><br>LINK OFF 状態で倒立<br>安定、長時間立ち続ける</sub>
+  <a href="https://youtube.com/shorts/9cm7EjcPE6I"><img src="https://img.youtube.com/vi/9cm7EjcPE6I/maxresdefault.jpg" alt="Monaなし倒立" width="320"></a><br>
+  <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/9cm7EjcPE6I">③ Mona なし</a></strong><br>LINK OFF 状態で倒立<br>安定、長時間立ち続ける</sub>
 </td>
 </tr>
 </table>
@@ -1707,8 +1707,8 @@ Translation: the drawJpg blocking is gone, but **other hidden loads** still rema
   <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/zf6XWxcPdcU">② With Mona</a></strong><br>Balancing with LINK ON<br><strong>visibly unstable, falls frequently</strong></sub>
 </td>
 <td align="center" width="33%">
-  <a href="https://youtube.com/shorts/Icvz28aQBTk"><img src="https://img.youtube.com/vi/Icvz28aQBTk/maxresdefault.jpg" alt="Balance without Mona" width="320"></a><br>
-  <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/Icvz28aQBTk">③ Without Mona</a></strong><br>Balancing with LINK OFF<br>stable, stays upright for long stretches</sub>
+  <a href="https://youtube.com/shorts/9cm7EjcPE6I"><img src="https://img.youtube.com/vi/9cm7EjcPE6I/maxresdefault.jpg" alt="Balance without Mona" width="320"></a><br>
+  <sub>🎥 <strong>▶︎ <a href="https://youtube.com/shorts/9cm7EjcPE6I">③ Without Mona</a></strong><br>Balancing with LINK OFF<br>stable, stays upright for long stretches</sub>
 </td>
 </tr>
 </table>
